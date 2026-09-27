@@ -371,3 +371,88 @@ func TestRetryAfterParsing(t *testing.T) {
 		}
 	}
 }
+
+func item(index any, scale float64) map[string]any {
+	m := map[string]any{"embedding": vectorJSON(4, scale)}
+	if index != nil {
+		m["index"] = index
+	}
+	return m
+}
+
+func TestEmbedQueriesSendsOneRequestAndMatchesByIndex(t *testing.T) {
+	rec := &recorder{}
+	// out of order on purpose: index 1 first
+	_, cfg := serve(t, rec, 4, step{200, map[string]any{"data": []any{item(1, -0.01), item(0, 0.01)}}, nil})
+	vecs, err := newEmbedder(t, cfg, rec).EmbedQueries(context.Background(), []string{"first", "second"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.bodies) != 1 {
+		t.Fatalf("requests = %d, want 1", len(rec.bodies))
+	}
+	input, _ := rec.bodies[0]["input"].([]any)
+	if len(input) != 2 || input[0] != "first" || input[1] != "second" || rec.bodies[0]["input_type"] != "search_query" {
+		t.Fatalf("unexpected body: %v", rec.bodies[0])
+	}
+	if len(vecs) != 2 || vecs[0][0] <= 0 || vecs[1][0] >= 0 {
+		t.Fatalf("vectors not matched by index: %v", vecs)
+	}
+}
+
+func TestEmbedQueriesBadBatchResponses(t *testing.T) {
+	cases := []struct {
+		name string
+		data []any
+	}{
+		{"too few", []any{item(0, 0.01)}},
+		{"too many", []any{item(0, 0.01), item(1, 0.01), item(2, 0.01)}},
+		{"duplicate index", []any{item(0, 0.01), item(0, 0.02)}},
+		{"index out of range", []any{item(0, 0.01), item(2, 0.01)}},
+		{"missing index in a batch", []any{item(nil, 0.01), item(1, 0.01)}},
+		{"wrong dimension", []any{item(0, 0.01), map[string]any{"index": 1, "embedding": []float64{1, 2}}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := &recorder{}
+			_, cfg := serve(t, rec, 4, step{200, map[string]any{"data": c.data}, nil})
+			_, err := newEmbedder(t, cfg, rec).EmbedQueries(context.Background(), []string{"a", "b"})
+			if !errors.Is(err, ErrInvalidResponse) {
+				t.Fatalf("err = %v, want ErrInvalidResponse", err)
+			}
+		})
+	}
+}
+
+func TestEmbedQueriesSingleInputMayOmitIndex(t *testing.T) {
+	rec := &recorder{}
+	_, cfg := serve(t, rec, 4, step{200, map[string]any{"data": []any{item(nil, 0.01)}}, nil})
+	if _, err := newEmbedder(t, cfg, rec).EmbedQuery(context.Background(), "q"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEmbedQueriesRejectsABlankTextWithoutARequest(t *testing.T) {
+	rec := &recorder{}
+	_, cfg := serve(t, rec, 4)
+	_, err := newEmbedder(t, cfg, rec).EmbedQueries(context.Background(), []string{"ok", "   "})
+	if !errors.Is(err, ErrInputRejected) || len(rec.bodies) != 0 {
+		t.Fatalf("err = %v, requests = %d; want ErrInputRejected and none", err, len(rec.bodies))
+	}
+	vecs, err := newEmbedder(t, cfg, rec).EmbedQueries(context.Background(), nil)
+	if err != nil || len(vecs) != 0 || len(rec.bodies) != 0 {
+		t.Fatal("an empty batch must return nothing and send nothing")
+	}
+}
+
+func TestEmbedQueriesRetriesLikeASingleQuery(t *testing.T) {
+	rec := &recorder{}
+	ok := step{200, map[string]any{"data": []any{item(0, 0.01), item(1, 0.02)}}, nil}
+	_, cfg := serve(t, rec, 4, step{status: 429, body: map[string]any{}}, step{status: 503, body: map[string]any{}}, ok)
+	if _, err := newEmbedder(t, cfg, rec).EmbedQueries(context.Background(), []string{"a", "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.bodies) != 3 {
+		t.Fatalf("requests = %d, want 3", len(rec.bodies))
+	}
+}

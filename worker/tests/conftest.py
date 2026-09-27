@@ -26,7 +26,8 @@ def test_dsn():
     dsn = make_conninfo(base, dbname=name)
     try:
         with psycopg.connect(dsn, autocommit=True) as conn:
-            conn.execute((REPO_ROOT / "migrations" / "001_init.sql").read_text())
+            for migration in sorted((REPO_ROOT / "migrations").glob("*.sql")):
+                conn.execute(migration.read_text())
         yield dsn
     finally:
         with psycopg.connect(base, autocommit=True) as admin:

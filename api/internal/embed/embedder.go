@@ -120,9 +120,25 @@ func (r *retryable) Error() string { return r.err.Error() }
 func (r *retryable) Unwrap() error { return r.err }
 
 func (e *OpenAICompat) EmbedQuery(ctx context.Context, text string) ([]float32, error) {
-	prepared := e.Prepare(text)
-	if strings.TrimSpace(prepared) == "" {
-		return nil, ErrInputRejected
+	vecs, err := e.EmbedQueries(ctx, []string{text})
+	if err != nil {
+		return nil, err
+	}
+	return vecs[0], nil
+}
+
+// EmbedQueries embeds several questions in one request. Vectors come back in input order, matched to the
+// inputs by the response's index field. The caller keeps a batch within the provider's limit (64 here).
+func (e *OpenAICompat) EmbedQueries(ctx context.Context, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+	prepared := make([]string, len(texts))
+	for i, t := range texts {
+		prepared[i] = e.Prepare(t)
+		if strings.TrimSpace(prepared[i]) == "" {
+			return nil, ErrInputRejected
+		}
 	}
 	body, err := json.Marshal(e.requestBody(prepared))
 	if err != nil {
@@ -131,9 +147,9 @@ func (e *OpenAICompat) EmbedQuery(ctx context.Context, text string) ([]float32, 
 
 	var last error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		vec, err := e.once(ctx, body)
+		vecs, err := e.once(ctx, body, len(texts))
 		if err == nil {
-			return vec, nil
+			return vecs, nil
 		}
 		var r *retryable
 		if !errors.As(err, &r) {
@@ -154,8 +170,8 @@ func (e *OpenAICompat) EmbedQuery(ctx context.Context, text string) ([]float32, 
 	return nil, last
 }
 
-func (e *OpenAICompat) requestBody(text string) map[string]any {
-	body := map[string]any{"model": e.cfg.Model, "input": []string{text}}
+func (e *OpenAICompat) requestBody(texts []string) map[string]any {
+	body := map[string]any{"model": e.cfg.Model, "input": texts}
 	if e.cfg.InputTypes {
 		body["input_type"] = "search_query"
 	}
@@ -165,7 +181,7 @@ func (e *OpenAICompat) requestBody(text string) map[string]any {
 	return body
 }
 
-func (e *OpenAICompat) once(ctx context.Context, body []byte) ([]float32, error) {
+func (e *OpenAICompat) once(ctx context.Context, body []byte, n int) ([][]float32, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, e.cfg.Timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, e.url, bytes.NewReader(body))
@@ -193,7 +209,7 @@ func (e *OpenAICompat) once(ctx context.Context, body []byte) ([]float32, error)
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		return e.parse(raw)
+		return e.parse(raw, n)
 	}
 	slog.Warn("embedding request got an error status", "status", resp.StatusCode, "body", snippet(raw))
 	switch resp.StatusCode {
@@ -226,21 +242,36 @@ func snippet(raw []byte) string {
 	return string(raw)
 }
 
-func (e *OpenAICompat) parse(raw []byte) ([]float32, error) {
+// parse expects exactly n vectors. With one input a missing index means 0; with several, every item must
+// carry a distinct index in [0, n), because position alone is not a promise the API makes.
+func (e *OpenAICompat) parse(raw []byte, n int) ([][]float32, error) {
 	var payload struct {
 		Data []struct {
 			Index     *int      `json:"index"`
 			Embedding []float64 `json:"embedding"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(raw, &payload); err != nil || len(payload.Data) != 1 {
+	if err := json.Unmarshal(raw, &payload); err != nil || len(payload.Data) != n {
 		return nil, ErrInvalidResponse
 	}
-	item := payload.Data[0]
-	if (item.Index != nil && *item.Index != 0) || len(item.Embedding) != e.cfg.Dimension {
-		return nil, ErrInvalidResponse
+	out := make([][]float32, n)
+	for _, item := range payload.Data {
+		i := 0
+		if item.Index != nil {
+			i = *item.Index
+		} else if n > 1 {
+			return nil, ErrInvalidResponse
+		}
+		if i < 0 || i >= n || out[i] != nil || len(item.Embedding) != e.cfg.Dimension {
+			return nil, ErrInvalidResponse
+		}
+		vec, err := Normalize(item.Embedding)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = vec
 	}
-	return Normalize(item.Embedding)
+	return out, nil
 }
 
 // Normalize returns the vector scaled to unit length, or ErrInvalidResponse for a zero or non-finite vector.

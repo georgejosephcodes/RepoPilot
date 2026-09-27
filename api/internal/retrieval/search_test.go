@@ -326,3 +326,10 @@ func TestCheckPgvector(t *testing.T) {
 		t.Fatalf("version %q", version)
 	}
 }
+
+func TestCheckSchemaPassesOnTheMigratedDatabase(t *testing.T) {
+	pool := testPool(t)
+	if err := CheckSchema(context.Background(), pool); err != nil {
+		t.Fatalf("%v (apply migrations/002_query_cache.sql to the dev database)", err)
+	}
+}

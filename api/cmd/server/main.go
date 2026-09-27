@@ -83,6 +83,9 @@ func buildQueryService(ctx context.Context, pool *pgxpool.Pool, store repos.Stor
 	if err := retrieval.CheckDimension(ctx, pool, embedCfg.Dimension); err != nil {
 		fatal(err.Error())
 	}
+	if err := retrieval.CheckSchema(ctx, pool); err != nil {
+		fatal(err.Error())
+	}
 	if version, err := retrieval.CheckPgvector(ctx, pool); err != nil {
 		slog.Warn("pgvector check", "version", version, "error", err.Error())
 	}
@@ -100,7 +103,7 @@ func buildQueryService(ctx context.Context, pool *pgxpool.Pool, store repos.Stor
 
 	return &rag.Service{
 		Repos:            store,
-		Embed:            embed.NewCached(embedder, 256),
+		Embed:            embed.NewCached(embed.NewPersistent(embedder, embed.NewPgQueryStore(pool, embedder.Dimension()), embed.DefaultBatchSize), 256),
 		Search:           retrieval.NewPgSearcher(pool, embedder.ModelName(), embedder.Dimension()),
 		LLM:              answerer,
 		TopK:             intEnv("RETRIEVAL_TOP_K", rag.DefaultTopK, 1),
