@@ -8,6 +8,7 @@ import (
 	"repopilot/api/internal/evalmetrics"
 	"repopilot/api/internal/rerank"
 	"repopilot/api/internal/retrieval"
+	"repopilot/api/internal/rewrite"
 )
 
 // Run is everything one evaluation produced; it is written as JSON so later runs can be compared with it.
@@ -31,8 +32,28 @@ type Settings struct {
 	CodeCommit   string             `json:"code_commit"`
 	Repositories []RepoPin          `json:"repositories"`
 	CreatedAt    string             `json:"created_at"`
-	Params       map[string]float64 `json:"params,omitempty"` // variant settings, for example the hybrid weights
-	Rerank       *RerankInfo        `json:"rerank,omitempty"` // hybrid-rerank only
+	Params       map[string]float64 `json:"params,omitempty"`  // variant settings, for example the hybrid weights
+	Rerank       *RerankInfo        `json:"rerank,omitempty"`  // rerank variants only
+	Rewrite      *RewriteInfo       `json:"rewrite,omitempty"` // rewrite variants only
+}
+
+// RewriteInfo records what query rewriting did in a run (PHASE2.md step 8). Times are upstream calls, measured when
+// each rewrite was made (a cached rewrite keeps its original time).
+type RewriteInfo struct {
+	Name          string         `json:"name"` // prompt version / model
+	UpstreamCalls int            `json:"upstream_calls"`
+	CacheHits     int            `json:"cache_hits"`
+	FallbackCount int            `json:"fallback_count"`
+	Fallbacks     map[string]int `json:"fallbacks,omitempty"`
+	MedianMS      int64          `json:"median_ms"`
+	P90MS         int64          `json:"p90_ms"`
+	MaxMS         int64          `json:"max_ms"`
+}
+
+func rewriteInfo(name string, s rewrite.Stats) *RewriteInfo {
+	return &RewriteInfo{Name: name, UpstreamCalls: s.Calls, CacheHits: s.CacheHits, FallbackCount: s.FallbackCount(),
+		Fallbacks: s.Fallbacks, MedianMS: s.Percentile(50).Milliseconds(), P90MS: s.Percentile(90).Milliseconds(),
+		MaxMS: s.Percentile(100).Milliseconds()}
 }
 
 // RerankInfo records what the reranker did in a run. Times are upstream calls, measured when each ranking was

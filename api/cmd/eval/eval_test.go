@@ -14,6 +14,7 @@ import (
 	"repopilot/api/internal/repos"
 	"repopilot/api/internal/rerank"
 	"repopilot/api/internal/retrieval"
+	"repopilot/api/internal/rewrite"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden report")
@@ -299,5 +300,38 @@ func TestReportShowsRerankLine(t *testing.T) {
 		"rerank time (measured when each ranking was made) median 1500 ms, p90 10000 ms, max 10000 ms\n"
 	if !strings.Contains(got, want) {
 		t.Errorf("report lacks the rerank line; got:\n%s", got)
+	}
+}
+
+func TestRewriteVariantsAreKnownAndNamed(t *testing.T) {
+	for _, v := range []string{"hybrid-rewrite", "hybrid-rerank-rewrite"} {
+		if checkFlags(v, "dev", false) != nil || !usesHybrid(v) || !usesRewrite(v) {
+			t.Errorf("%s: not wired", v)
+		}
+	}
+	if usesRerank("hybrid-rewrite") || !usesRerank("hybrid-rerank-rewrite") || usesRewrite("hybrid-rerank") || usesRewrite("hybrid") {
+		t.Error("rerank and rewrite detection is wrong")
+	}
+	good := hybridParams{RRFK: 60, KeywordWeight: 0.75, TestPenalty: 0.5, Pool: 20}
+	if p := paramsFor("hybrid-rerank-rewrite", good, 20); p["rerank_depth"] != 20 {
+		t.Errorf("params %v", p)
+	}
+	if _, ok := paramsFor("hybrid-rewrite", good, 20)["rerank_depth"]; ok {
+		t.Error("hybrid-rewrite has no rerank depth")
+	}
+}
+
+func TestReportShowsRewriteLine(t *testing.T) {
+	run := fixtureRun(t)
+	run.Settings.Variant = "hybrid-rewrite"
+	run.Settings.Rewrite = rewriteInfo("rewrite-v1/m", rewrite.Stats{Calls: 1, CacheHits: 2,
+		Fallbacks:       map[string]int{"unparseable": 1},
+		Durations:       []time.Duration{800 * time.Millisecond},
+		CachedDurations: []time.Duration{1200 * time.Millisecond, 900 * time.Millisecond}})
+	got := renderReport(run, nil)
+	want := "- Rewrite: `rewrite-v1/m`; 1 upstream call(s) this run, 2 from cache; 1 fallback(s) (unparseable 1); " +
+		"rewrite time (measured when each rewrite was made) median 900 ms, p90 1200 ms, max 1200 ms\n"
+	if !strings.Contains(got, want) {
+		t.Errorf("report lacks the rewrite line; got:\n%s", got)
 	}
 }
