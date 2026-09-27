@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "description": "Phase 1 demo questions. Expected files and symbols were read from the real source at the pinned commits, not written from memory. Kinds: location (where is X), flow (how does X work), unanswerable (nothing in the repository can answer it, so the only correct result is a refusal), identifier (exact identifier, expected to expose the weakness of vector-only search). A question passes the mechanical checks when at least one cited file is in expected_files; a human verdict on the answer text is recorded separately.",
+  "repositories": [
+    {
+      "name": "golang/example",
+      "language": "Go",
+      "commit": "7f05d217867b2af52b0a28c6d1c91df97e1b5b39",
+      "questions": [
+        {
+          "id": "go-1",
+          "kind": "location",
+          "question": "Where is the function that reverses a string implemented?",
+          "expected_files": ["hello/reverse/reverse.go"],
+          "expected_symbols": ["String"],
+          "expected_answer": "reverse.String converts the string to runes and swaps them from both ends (hello/reverse/reverse.go lines 8-15)."
+        },
+        {
+          "id": "go-2",
+          "kind": "location",
+          "question": "Where is the Weaviate client initialized?",
+          "expected_files": ["ragserver/ragserver/weaviate.go"],
+          "expected_symbols": ["initWeaviate"],
+          "expected_answer": "initWeaviate creates a weaviate client for localhost with the port from WVPORT (default 9035) and the http scheme."
+        },
+        {
+          "id": "go-3",
+          "kind": "flow",
+          "question": "How does the ragserver query handler answer a question?",
+          "expected_files": [
+            "ragserver/ragserver/main.go",
+            "ragserver/ragserver-genkit/main.go",
+            "ragserver/ragserver-langchaingo/main.go"
+          ],
+          "expected_symbols": ["ragServer.queryHandler"],
+          "expected_answer": "queryHandler decodes the question from the JSON request, embeds it, searches Weaviate for the 3 nearest documents, builds a prompt from the question and those documents, and asks the generative model (ragserver/ragserver/main.go lines 124-200). Three variants exist (plain, genkit, langchaingo); any of them is a correct source."
+        },
+        {
+          "id": "go-4",
+          "kind": "unanswerable",
+          "question": "How does the server authenticate users with OAuth tokens?",
+          "expected_files": [],
+          "expected_symbols": [],
+          "expected_answer": "Nothing in the repository handles authentication (a search for oauth, authenticat, login and password in the Go, Markdown and JavaScript files finds no match). The correct result is a refusal with no citations."
+        },
+        {
+          "id": "go-5",
+          "kind": "identifier",
+          "question": "What does PrintDefsUses do?",
+          "expected_files": ["gotypes/defsuses/main.go"],
+          "expected_symbols": ["PrintDefsUses"],
+          "expected_answer": "PrintDefsUses (gotypes/defsuses/main.go line 23) type-checks the given files and prints every identifier that defines an object and every identifier that uses one."
+        }
+      ]
+    },
+    {
+      "name": "sindresorhus/is",
+      "language": "TypeScript",
+      "commit": "e9c026c611c1160eaad50da00be4e676b626018f",
+      "questions": [
+        {
+          "id": "ts-1",
+          "kind": "location",
+          "question": "Where is the function that detects the type name of a value?",
+          "expected_files": ["source/index.ts"],
+          "expected_symbols": ["detect"],
+          "expected_answer": "detect (source/index.ts line 195) returns a TypeName: null first, then a switch on typeof for primitives and functions, then object checks (observable, array, buffer, Object.prototype.toString tag, promise), throwing for boxed primitives and returning 'Object' otherwise."
+        },
+        {
+          "id": "ts-2",
+          "kind": "location",
+          "question": "Where is the check that a string is empty or contains only whitespace?",
+          "expected_files": ["source/index.ts"],
+          "expected_symbols": ["isEmptyStringOrWhitespace", "isEmptyString", "isWhitespaceString"],
+          "expected_answer": "isEmptyStringOrWhitespace (source/index.ts line 586) returns isEmptyString(value) || isWhitespaceString(value)."
+        },
+        {
+          "id": "ts-3",
+          "kind": "flow",
+          "question": "How does isAll combine several predicates into one?",
+          "expected_files": ["source/index.ts"],
+          "expected_symbols": ["isAll", "validatePredicateArray"],
+          "expected_answer": "isAll validates the predicate array (validatePredicateArray), builds a combined predicate with predicateArray.every, returns it when no values are given, otherwise checks all values with predicateOnArray."
+        },
+        {
+          "id": "ts-4",
+          "kind": "unanswerable",
+          "question": "How does the library connect to a database?",
+          "expected_files": [],
+          "expected_symbols": [],
+          "expected_answer": "The library is a set of type checks; a search for database, sql, fetch and XMLHttpRequest in the source finds no match. The correct result is a refusal with no citations."
+        },
+        {
+          "id": "ts-5",
+          "kind": "identifier",
+          "question": "What does isAbsoluteModule2 do?",
+          "expected_files": ["source/index.ts"],
+          "expected_symbols": ["isAbsoluteModule2"],
+          "expected_answer": "isAbsoluteModule2 (source/index.ts line 387) returns a guard that a value is an integer whose absolute remainder modulo 2 equals the given remainder; isEvenInteger and isOddInteger use it."
+        }
+      ]
+    },
+    {
+      "name": "pallets/itsdangerous",
+      "language": "Python",
+      "commit": "672971d66a2ef9f85151e53283113f33d642dabd",
+      "questions": [
+        {
+          "id": "py-1",
+          "kind": "location",
+          "question": "Where is the HMAC signature computed?",
+          "expected_files": ["src/itsdangerous/signer.py"],
+          "expected_symbols": ["HMACAlgorithm.get_signature"],
+          "expected_answer": "HMACAlgorithm.get_signature (src/itsdangerous/signer.py lines 62-64) creates hmac.new(key, msg=value, digestmod=self.digest_method) and returns its digest."
+        },
+        {
+          "id": "py-2",
+          "kind": "location",
+          "question": "Where does the code convert a timestamp into a datetime?",
+          "expected_files": ["src/itsdangerous/timed.py"],
+          "expected_symbols": ["TimestampSigner.timestamp_to_datetime"],
+          "expected_answer": "TimestampSigner.timestamp_to_datetime (src/itsdangerous/timed.py lines 35-43) returns datetime.fromtimestamp(ts, tz=timezone.utc)."
+        },
+        {
+          "id": "py-3",
+          "kind": "flow",
+          "question": "How does TimestampSigner check that a signed value has expired?",
+          "expected_files": ["src/itsdangerous/timed.py"],
+          "expected_symbols": ["TimestampSigner.unsign"],
+          "expected_answer": "unsign verifies the signature, splits off the timestamp with rsplit, decodes it, computes age = get_timestamp() - timestamp, and raises SignatureExpired when age is greater than max_age (or negative)."
+        },
+        {
+          "id": "py-4",
+          "kind": "unanswerable",
+          "question": "How does the library connect to a Redis server to cache signatures?",
+          "expected_files": [],
+          "expected_symbols": [],
+          "expected_answer": "Nothing in the library uses Redis or caches signatures. The correct result is a refusal with no citations."
+        },
+        {
+          "id": "py-5",
+          "kind": "identifier",
+          "question": "What does want_bytes do?",
+          "expected_files": ["src/itsdangerous/encoding.py"],
+          "expected_symbols": ["want_bytes"],
+          "expected_answer": "want_bytes (src/itsdangerous/encoding.py lines 11-17) encodes a str to bytes with the given encoding and errors and returns bytes unchanged."
+        }
+      ]
+    }
+  ]
+}
