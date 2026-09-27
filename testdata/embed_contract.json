@@ -6,6 +6,8 @@
     "dimension": 2048,
     "send_dimensions": false,
     "input_types": true,
+    "query_type": "search_query",
+    "document_type": "search_document",
     "max_chars": 8000
   },
   "request_cases": [
@@ -36,6 +38,20 @@
       "kind": "query",
       "texts": ["héllo 世界"],
       "body": {"model": "org/model:free", "input": ["héllo 世界"], "input_type": "search_query"}
+    },
+    {
+      "name": "query with NVIDIA NIM input types",
+      "config": {"model": "nvidia/nemotron-3-embed-1b", "dimension": 4, "send_dimensions": false, "input_types": true, "query_type": "query", "document_type": "passage"},
+      "kind": "query",
+      "texts": ["q"],
+      "body": {"model": "nvidia/nemotron-3-embed-1b", "input": ["q"], "input_type": "query"}
+    },
+    {
+      "name": "documents with NVIDIA NIM input types",
+      "config": {"model": "nvidia/nemotron-3-embed-1b", "dimension": 4, "send_dimensions": false, "input_types": true, "query_type": "query", "document_type": "passage"},
+      "kind": "documents",
+      "texts": ["a"],
+      "body": {"model": "nvidia/nemotron-3-embed-1b", "input": ["a"], "input_type": "passage"}
     },
     {
       "name": "documents use search_document",

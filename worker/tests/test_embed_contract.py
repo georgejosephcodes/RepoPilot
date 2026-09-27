@@ -19,6 +19,8 @@ def test_defaults_match_the_contract():
     assert cfg.embed_dim == d["dimension"]
     assert cfg.embed_send_dimensions == d["send_dimensions"]
     assert cfg.embed_input_types == d["input_types"]
+    assert cfg.embed_query_type == d["query_type"]
+    assert cfg.embed_document_type == d["document_type"]
     assert cfg.embed_max_chars == d["max_chars"]
 
 
@@ -34,7 +36,8 @@ def test_request_bodies_match_the_contract(case):
 
     e = OpenAICompatEmbedder("https://x/v1", "key", case["config"]["model"], dim,
                              send_dimensions=case["config"]["send_dimensions"],
-                             input_types=case["config"]["input_types"], post=post)
+                             input_types=case["config"]["input_types"], post=post,
+                             **{k: case["config"][k] for k in ("query_type", "document_type") if k in case["config"]})
     if case["kind"] == "query":
         e.embed_query(case["texts"][0])
     else:

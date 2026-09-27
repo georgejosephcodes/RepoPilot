@@ -14,9 +14,10 @@ type Config struct {
 	APIKey         string
 	Model          string
 	Dimension      int
-	SendDimensions bool // this model rejects any `dimensions` other than its native size
-	InputTypes     bool // send input_type search_query / search_document
-	MaxChars       int  // text is cut to this many characters before sending
+	SendDimensions bool   // this model rejects any `dimensions` other than its native size
+	InputTypes     bool   // send input_type with every request
+	QueryType      string // input_type for questions: search_query (OpenRouter), query (NVIDIA NIM)
+	MaxChars       int    // text is cut to this many characters before sending
 	Timeout        time.Duration
 }
 
@@ -26,13 +27,14 @@ func DefaultConfig() Config {
 		Model:      "nvidia/nemotron-3-embed-1b:free",
 		Dimension:  2048,
 		InputTypes: true,
+		QueryType:  "search_query",
 		MaxChars:   8000,
 		Timeout:    15 * time.Second,
 	}
 }
 
 // ConfigFromEnv reads EMBED_BASE_URL, EMBED_API_KEY, EMBED_MODEL, EMBED_DIM, EMBED_SEND_DIMENSIONS,
-// EMBED_INPUT_TYPES and EMBED_MAX_CHARS. Empty values keep the default. The key is not required here.
+// EMBED_INPUT_TYPES, EMBED_QUERY_TYPE and EMBED_MAX_CHARS. Empty values keep the default. The key is not required here.
 func ConfigFromEnv(getenv func(string) string) (Config, error) {
 	cfg := DefaultConfig()
 	if v := getenv("EMBED_BASE_URL"); v != "" {
@@ -41,6 +43,9 @@ func ConfigFromEnv(getenv func(string) string) (Config, error) {
 	cfg.APIKey = getenv("EMBED_API_KEY")
 	if v := getenv("EMBED_MODEL"); v != "" {
 		cfg.Model = v
+	}
+	if v := getenv("EMBED_QUERY_TYPE"); v != "" {
+		cfg.QueryType = v
 	}
 	var err error
 	if cfg.Dimension, err = intEnv(getenv, "EMBED_DIM", cfg.Dimension, 1); err != nil {

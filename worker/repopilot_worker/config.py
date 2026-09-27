@@ -22,7 +22,9 @@ class Config:
     embed_model: str = "nvidia/nemotron-3-embed-1b:free"
     embed_dim: int = 2048
     embed_send_dimensions: bool = False   # this model rejects any `dimensions` other than 2048
-    embed_input_types: bool = True        # send input_type search_document / search_query
+    embed_input_types: bool = True        # send input_type with every request
+    embed_query_type: str = "search_query"        # OpenRouter; NVIDIA NIM uses "query"
+    embed_document_type: str = "search_document"  # OpenRouter; NVIDIA NIM uses "passage"
     embed_batch_size: int = 64
     embed_batch_tokens: int = 40000
     embed_max_chars: int = 8000
@@ -76,6 +78,8 @@ def load() -> Config:
         embed_dim=_int("EMBED_DIM", d.embed_dim),
         embed_send_dimensions=_bool("EMBED_SEND_DIMENSIONS", d.embed_send_dimensions),
         embed_input_types=_bool("EMBED_INPUT_TYPES", d.embed_input_types),
+        embed_query_type=_str("EMBED_QUERY_TYPE", d.embed_query_type),
+        embed_document_type=_str("EMBED_DOCUMENT_TYPE", d.embed_document_type),
         embed_batch_size=_int("EMBED_BATCH_SIZE", d.embed_batch_size),
         embed_batch_tokens=_int("EMBED_BATCH_TOKENS", d.embed_batch_tokens),
         embed_max_chars=_int("EMBED_MAX_CHARS", d.embed_max_chars),

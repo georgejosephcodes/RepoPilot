@@ -19,6 +19,7 @@ type contract struct {
 		Dimension      int    `json:"dimension"`
 		SendDimensions bool   `json:"send_dimensions"`
 		InputTypes     bool   `json:"input_types"`
+		QueryType      string `json:"query_type"`
 		MaxChars       int    `json:"max_chars"`
 	} `json:"defaults"`
 	RequestCases []struct {
@@ -28,6 +29,7 @@ type contract struct {
 			Dimension      int    `json:"dimension"`
 			SendDimensions bool   `json:"send_dimensions"`
 			InputTypes     bool   `json:"input_types"`
+			QueryType      string `json:"query_type"`
 		} `json:"config"`
 		Kind  string         `json:"kind"`
 		Texts []string       `json:"texts"`
@@ -64,7 +66,8 @@ func TestContractDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.BaseURL != want.BaseURL || got.Model != want.Model || got.Dimension != want.Dimension ||
-		got.SendDimensions != want.SendDimensions || got.InputTypes != want.InputTypes || got.MaxChars != want.MaxChars {
+		got.SendDimensions != want.SendDimensions || got.InputTypes != want.InputTypes || got.MaxChars != want.MaxChars ||
+		got.QueryType != want.QueryType {
 		t.Fatalf("defaults differ from the contract: %+v vs %+v", got, want)
 	}
 }
@@ -88,6 +91,9 @@ func TestContractRequestBodies(t *testing.T) {
 			cfg.BaseURL, cfg.APIKey = srv.URL, "k"
 			cfg.Model, cfg.Dimension = tc.Config.Model, tc.Config.Dimension
 			cfg.SendDimensions, cfg.InputTypes = tc.Config.SendDimensions, tc.Config.InputTypes
+			if tc.Config.QueryType != "" {
+				cfg.QueryType = tc.Config.QueryType
+			}
 			e, err := New(cfg)
 			if err != nil {
 				t.Fatal(err)

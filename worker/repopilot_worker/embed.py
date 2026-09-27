@@ -134,6 +134,8 @@ class OpenAICompatEmbedder:
         *,
         send_dimensions: bool = False,
         input_types: bool = True,
+        query_type: str = "search_query",
+        document_type: str = "search_document",
         batch_size: int = 64,
         batch_tokens: int = 40000,
         max_chars: int = 8000,
@@ -150,6 +152,7 @@ class OpenAICompatEmbedder:
         self.dimension = dimension
         self._send_dimensions = send_dimensions
         self._input_types = input_types
+        self._query_type, self._document_type = query_type, document_type
         self._batch_size = max(1, batch_size)
         self._batch_tokens = max(1, batch_tokens)
         self._max_chars = max(1, max_chars)
@@ -171,13 +174,13 @@ class OpenAICompatEmbedder:
         unique = list(dict.fromkeys(prepared))
         out: dict[str, Vector] = {}
         for batch in self._batches(unique):
-            self._embed_batch(batch, "search_document", out, on_batch)
+            self._embed_batch(batch, self._document_type, out, on_batch)
         return [out[p] for p in prepared]
 
     def embed_query(self, text: str) -> Vector:
         out: dict[str, Vector] = {}
         prepared = self.prepare(text)
-        self._embed_batch([prepared], "search_query", out, None)
+        self._embed_batch([prepared], self._query_type, out, None)
         return out[prepared]
 
     def remaining_requests(self) -> "int | None":
@@ -333,6 +336,7 @@ def make_embedder(cfg) -> OpenAICompatEmbedder:
     return OpenAICompatEmbedder(
         cfg.embed_base_url, cfg.embed_api_key, cfg.embed_model, cfg.embed_dim,
         send_dimensions=cfg.embed_send_dimensions, input_types=cfg.embed_input_types,
+        query_type=cfg.embed_query_type, document_type=cfg.embed_document_type,
         batch_size=cfg.embed_batch_size, batch_tokens=cfg.embed_batch_tokens,
         max_chars=cfg.embed_max_chars, rpm=cfg.embed_rpm,
     )

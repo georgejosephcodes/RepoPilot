@@ -1,7 +1,7 @@
 // Package embed turns a question into a vector through an OpenAI-compatible embeddings API.
 //
 // It must agree with the Python worker that embedded the documents: same model, same dimension,
-// input_type search_query for questions, unit-length vectors, same character cut. The shared
+// the configured input_type for questions (EMBED_QUERY_TYPE), unit-length vectors, same character cut. The shared
 // fixture testdata/embed_contract.json is what keeps the two honest.
 package embed
 
@@ -173,7 +173,7 @@ func (e *OpenAICompat) EmbedQueries(ctx context.Context, texts []string) ([][]fl
 func (e *OpenAICompat) requestBody(texts []string) map[string]any {
 	body := map[string]any{"model": e.cfg.Model, "input": texts}
 	if e.cfg.InputTypes {
-		body["input_type"] = "search_query"
+		body["input_type"] = e.cfg.QueryType
 	}
 	if e.cfg.SendDimensions {
 		body["dimensions"] = e.cfg.Dimension
