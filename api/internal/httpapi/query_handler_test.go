@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -16,16 +17,17 @@ import (
 )
 
 type fakeAsker struct {
-	resp     rag.Response
-	err      error
-	calls    int
-	gotID    int64
-	gotQuery string
+	resp      rag.Response
+	err       error
+	calls     int
+	gotID     int64
+	gotQuery  string
+	gotFilter retrieval.Filter
 }
 
-func (f *fakeAsker) Ask(_ context.Context, id int64, q string) (rag.Response, error) {
+func (f *fakeAsker) Ask(_ context.Context, id int64, q string, filter retrieval.Filter) (rag.Response, error) {
 	f.calls++
-	f.gotID, f.gotQuery = id, q
+	f.gotID, f.gotQuery, f.gotFilter = id, q, filter
 	return f.resp, f.err
 }
 
@@ -114,6 +116,9 @@ func TestQueryRejectsBadRequests(t *testing.T) {
 		{"bad id", "/api/repositories/abc/query", `{"question":"q"}`, 400},
 		{"zero id", "/api/repositories/0/query", `{"question":"q"}`, 400},
 		{"oversized body", "/api/repositories/1/query", `{"question":"` + strings.Repeat("a", 9000) + `"}`, 413},
+		{"language not a list", "/api/repositories/1/query", `{"question":"q","filters":{"language":"go"}}`, 400},
+		{"prefix not a string", "/api/repositories/1/query", `{"question":"q","filters":{"path_prefix":3}}`, 400},
+		{"filters not an object", "/api/repositories/1/query", `{"question":"q","filters":[]}`, 400},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -180,5 +185,31 @@ func TestQueryLimitIsSeparateFromTheCreateLimit(t *testing.T) {
 	}
 	if w := do(r, http.MethodPost, "/api/repositories/1/query", `{"question":"q"}`); w.Code != http.StatusOK {
 		t.Fatalf("query after a create must have its own bucket: %d", w.Code)
+	}
+}
+
+func TestQueryPassesFilters(t *testing.T) {
+	a := &fakeAsker{}
+	r := queryRouter(a, 0)
+	w := do(r, http.MethodPost, "/api/repositories/1/query", `{"question":"q","filters":{"language":["go","python"],"path_prefix":"api/"}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", w.Code, w.Body.String())
+	}
+	if !reflect.DeepEqual(a.gotFilter, retrieval.Filter{Languages: []string{"go", "python"}, PathPrefix: "api/"}) {
+		t.Fatalf("filter = %+v", a.gotFilter)
+	}
+	for _, body := range []string{`{"question":"q"}`, `{"question":"q","filters":null}`, `{"question":"q","filters":{}}`} {
+		do(r, http.MethodPost, "/api/repositories/1/query", body)
+		if !a.gotFilter.Empty() {
+			t.Errorf("%s: filter = %+v, want empty", body, a.gotFilter)
+		}
+	}
+}
+
+func TestQueryInvalidFilterIs400WithTheReason(t *testing.T) {
+	err := retrieval.ValidateFilter(retrieval.Filter{Languages: []string{"rust"}})
+	w := do(queryRouter(&fakeAsker{err: err}, 0), http.MethodPost, "/api/repositories/1/query", `{"question":"q","filters":{"language":["rust"]}}`)
+	if w.Code != 400 || errCode(t, w) != "invalid_request" || !strings.Contains(w.Body.String(), "unknown language") {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
 }

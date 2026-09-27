@@ -1,0 +1,4 @@
+{
+ "description": "Values of chunks.language. Checked by api/internal/retrieval (Languages) and worker/tests/test_languages_fixture.py (scan.LANGUAGES). Sorted.",
+ "languages": ["go", "javascript", "markdown", "python", "typescript"]
+}

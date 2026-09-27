@@ -27,17 +27,19 @@ func TestIsTestPath(t *testing.T) {
 }
 
 type fakeRetriever struct {
-	chunks []Chunk
-	err    error
-	gotK   int
-	gotQ   string
-	ctxKey any
+	chunks    []Chunk
+	err       error
+	gotK      int
+	gotQ      string
+	gotFilter Filter
+	ctxKey    any
 }
 
 type ctxKeyT struct{}
 
-func (f *fakeRetriever) Retrieve(ctx context.Context, _ int64, q string, _ []float32, k int) ([]Chunk, error) {
-	f.gotK, f.gotQ, f.ctxKey = k, q, ctx.Value(ctxKeyT{})
+func (f *fakeRetriever) Retrieve(ctx context.Context, q Query) ([]Chunk, error) {
+	k := q.K
+	f.gotK, f.gotQ, f.gotFilter, f.ctxKey = k, q.Text, q.Filter, ctx.Value(ctxKeyT{})
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -67,7 +69,7 @@ func ids(cs []Chunk) string {
 
 func TestHybridFusesByRank(t *testing.T) {
 	h, _, _ := hybrid([]Chunk{ch(1, "a"), ch(2, "b"), ch(3, "c")}, []Chunk{ch(3, "c"), ch(4, "d")})
-	got, err := h.Retrieve(context.Background(), 1, "q", nil, 10)
+	got, err := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +85,7 @@ func TestHybridFusesByRank(t *testing.T) {
 func TestHybridKeywordWeight(t *testing.T) {
 	h, _, _ := hybrid([]Chunk{ch(1, "a")}, []Chunk{ch(2, "b")})
 	h.KeywordWeight = 0.5
-	got, _ := h.Retrieve(context.Background(), 1, "q", nil, 10)
+	got, _ := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 10})
 	if ids(got) != "1,2" || math.Abs(got[1].Score-0.5/61) > 1e-12 {
 		t.Fatalf("got %s scores %v %v", ids(got), got[0].Score, got[1].Score)
 	}
@@ -91,12 +93,12 @@ func TestHybridKeywordWeight(t *testing.T) {
 
 func TestHybridTestPenalty(t *testing.T) {
 	h, _, _ := hybrid([]Chunk{ch(1, "tests/test_a.py"), ch(2, "src/a.py")}, nil)
-	got, _ := h.Retrieve(context.Background(), 1, "q", nil, 10)
+	got, _ := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 10})
 	if ids(got) != "1,2" {
 		t.Fatalf("without penalty: %s", ids(got))
 	}
 	h.TestPenalty = 0.5
-	got, _ = h.Retrieve(context.Background(), 1, "q", nil, 10)
+	got, _ = h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 10})
 	if ids(got) != "2,1" {
 		t.Fatalf("with penalty the test file must drop: %s", ids(got))
 	}
@@ -105,7 +107,7 @@ func TestHybridTestPenalty(t *testing.T) {
 func TestHybridPoolKAndOneEmptyList(t *testing.T) {
 	h, v, k := hybrid([]Chunk{ch(1, "a"), ch(2, "b"), ch(3, "c")}, nil)
 	h.Pool = 2
-	got, err := h.Retrieve(context.Background(), 1, "question", nil, 1)
+	got, err := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "question", K: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +125,7 @@ func TestHybridKeepsVectorDistance(t *testing.T) {
 	b := ch(1, "a")
 	b.Score = 99 // a keyword score must not leak into the fused score
 	h, _, _ := hybrid([]Chunk{a}, []Chunk{b})
-	got, _ := h.Retrieve(context.Background(), 1, "q", nil, 10)
+	got, _ := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 10})
 	if got[0].Distance != 0.3 || math.Abs(got[0].Score-2.0/61) > 1e-12 {
 		t.Fatalf("distance %v score %v", got[0].Distance, got[0].Score)
 	}
@@ -138,13 +140,13 @@ func TestHybridErrorsAndContext(t *testing.T) {
 		} else {
 			k.err = boom
 		}
-		if _, err := h.Retrieve(context.Background(), 1, "q", nil, 5); !errors.Is(err, boom) {
+		if _, err := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 5}); !errors.Is(err, boom) {
 			t.Fatalf("%s error not returned: %v", which, err)
 		}
 	}
 	h, v, k := hybrid(nil, nil)
 	ctx := context.WithValue(context.Background(), ctxKeyT{}, "marker")
-	h.Retrieve(ctx, 1, "q", nil, 5)
+	h.Retrieve(ctx, Query{RepoID: 1, Text: "q", K: 5})
 	if v.ctxKey != "marker" || k.ctxKey != "marker" {
 		t.Fatal("context must reach both retrievers")
 	}
@@ -164,12 +166,12 @@ func TestHybridValidatesSettings(t *testing.T) {
 	for i, mutate := range bad {
 		h, _, _ := hybrid(nil, nil)
 		mutate(&h)
-		if _, err := h.Retrieve(context.Background(), 1, "q", nil, 5); !errors.Is(err, ErrBadHybridConfig) {
+		if _, err := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 5}); !errors.Is(err, ErrBadHybridConfig) {
 			t.Errorf("case %d: err = %v, want ErrBadHybridConfig", i, err)
 		}
 	}
 	h, _, _ := hybrid(nil, nil)
-	if _, err := h.Retrieve(context.Background(), 1, "q", nil, 0); !errors.Is(err, ErrInvalidK) {
+	if _, err := h.Retrieve(context.Background(), Query{RepoID: 1, Text: "q", K: 0}); !errors.Is(err, ErrInvalidK) {
 		t.Fatal("k=0 must fail")
 	}
 }

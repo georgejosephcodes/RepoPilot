@@ -119,6 +119,43 @@
   ]);
   eq("stats", C.formatStats({ embed_ms: 753, search_ms: 10, llm_ms: 1115, chunks_in_prompt: 8, input_tokens: 1293, output_tokens: 52 }), "1.9s · 8 chunks · 1,293 in / 52 out tokens");
   eq("stats singular", C.formatStats({ chunks_in_prompt: 1 }).indexOf("1 chunk ·"), 7);
+  eq(
+    "stats with mode and rerank",
+    C.formatStats({ retrieval_mode: "hybrid_rerank", embed_ms: 300, search_ms: 1800, llm_ms: 1500, rerank_ms: 1690, chunks_in_prompt: 8 }),
+    "3.6s · hybrid_rerank (rerank 1.7s) · 8 chunks · 0 in / 0 out tokens"
+  );
+  eq("stats rerank cached", C.formatStats({ retrieval_mode: "hybrid_rerank", rerank_ms: 1690, rerank_cached: true }).indexOf("(rerank cached)") > 0, true);
+  eq("stats rerank failed", C.formatStats({ retrieval_mode: "hybrid_rerank", rerank_fallback: "timeout", rerank_ms: 10000 }).indexOf("(rerank failed)") > 0, true);
+  eq("stats vector mode", C.formatStats({ retrieval_mode: "vector" }), "0.0s · vector · 0 chunks · 0 in / 0 out tokens");
+  eq("rerank note", C.rerankNote({ rerank_fallback: "timeout" }), "rerank failed (timeout); hybrid order used");
+  eq("rerank note none", C.rerankNote({ rerank_cached: true }), null);
+
+  // ---- ask options ----
+  var P = C.parseAskOptions;
+  eq("ask no options", P("where is main?"), { question: "where is main?", filters: null, error: null });
+  eq("ask lang", P("--lang go where is main?"), { question: "where is main?", filters: { language: ["go"] }, error: null });
+  eq("ask lang list and path", P("--lang go,python --path api/ q"), {
+    question: "q",
+    filters: { language: ["go", "python"], path_prefix: "api/" },
+    error: null,
+  });
+  eq("ask equals form", P("--path=src/ --lang=ts,go q").filters, { language: ["ts", "go"], path_prefix: "src/" });
+  eq("ask repeated lang merges", P("--lang go --lang go,python q").filters.language, ["go", "python"]);
+  eq("ask double dash ends options", P("--lang go -- --path is a word here"), {
+    question: "--path is a word here",
+    filters: { language: ["go"] },
+    error: null,
+  });
+  eq("ask options only inside the text stay text", P("what does --lang do?").question, "what does --lang do?");
+  eq("ask unknown option", P("--language go q").error, "unknown option --language");
+  eq("ask missing value", P("--lang").error, "--lang needs a value");
+  eq("ask value cannot be an option", P("--lang --path x q").error, "--lang needs a value");
+  eq("ask empty equals value", P("--path= q").error, "--path needs a value");
+  eq("ask path twice", P("--path a --path b q").error, "--path given twice");
+  eq("ask options without question", P("--lang go").question, "");
+  eq("filter line", C.filterLine({ language: ["go", "python"], path_prefix: "api/" }), "filters: language go, python · path api/");
+  eq("filter line none", C.filterLine(null), null);
+  eq("bare text with options is a question", C.parseInput("--lang go q").kind, "ask");
 
   // ---- response shape ----
   eq("normalise rejects non-objects", C.normaliseAnswer("x"), null);

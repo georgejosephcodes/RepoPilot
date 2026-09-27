@@ -18,7 +18,8 @@ type baseList struct {
 	lastK  int
 }
 
-func (b *baseList) Retrieve(_ context.Context, _ int64, _ string, _ []float32, k int) ([]retrieval.Chunk, error) {
+func (b *baseList) Retrieve(_ context.Context, q retrieval.Query) ([]retrieval.Chunk, error) {
+	k := q.K
 	b.lastK = k
 	if b.err != nil {
 		return nil, b.err
@@ -116,7 +117,7 @@ func TestRetrieveReranksOnlyTheHeadAndReturnsK(t *testing.T) {
 	b := &baseList{chunks: chunks(20)}
 	s := &scripted{ranking: []int{4, 2}}
 	r := &Retriever{Base: b, Reranker: s, Depth: 5}
-	got, err := r.Retrieve(context.Background(), 1, "q", nil, 8)
+	got, err := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 8})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +130,7 @@ func TestRetrieveReranksOnlyTheHeadAndReturnsK(t *testing.T) {
 
 	// Depth above k: fetch Depth, rerank all of them, return k.
 	r = &Retriever{Base: b, Reranker: &scripted{ranking: []int{9}}, Depth: 10}
-	got, _ = r.Retrieve(context.Background(), 1, "q", nil, 3)
+	got, _ = r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 3})
 	if b.lastK != 10 || !reflect.DeepEqual(ids(got), []int64{109, 100, 101}) {
 		t.Errorf("base k %d, got %v", b.lastK, ids(got))
 	}
@@ -147,8 +148,8 @@ func TestEveryFailureFallsBackToBaseOrder(t *testing.T) {
 	}
 	for _, c := range cases {
 		cache := newMem()
-		r := &Retriever{Base: &baseList{chunks: chunks(6)}, Reranker: c.s, Depth: 6, Cache: cache, Timeout: 20 * time.Millisecond}
-		got, err := r.Retrieve(context.Background(), 1, "q", nil, 6)
+		r := &Retriever{Base: &baseList{chunks: chunks(6)}, Reranker: c.s, Depth: 6, Cache: cache, Timeout: 20 * time.Millisecond, RecordDurations: true}
+		got, err := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 6})
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
@@ -170,7 +171,7 @@ func TestCancelledContextIsAnErrorNotAFallback(t *testing.T) {
 	s := &scripted{block: true}
 	r := &Retriever{Base: &baseList{chunks: chunks(3)}, Reranker: s, Depth: 3, Timeout: time.Minute}
 	go func() { time.Sleep(10 * time.Millisecond); cancel() }()
-	if _, err := r.Retrieve(ctx, 1, "q", nil, 3); !errors.Is(err, context.Canceled) {
+	if _, err := r.Retrieve(ctx, retrieval.Query{RepoID: 1, Text: "q", K: 3}); !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
 	}
 	if r.Stats().FallbackCount() != 0 {
@@ -181,10 +182,10 @@ func TestCancelledContextIsAnErrorNotAFallback(t *testing.T) {
 func TestCacheReusesRankingAndSkipsUpstream(t *testing.T) {
 	cache := newMem()
 	s := &scripted{ranking: []int{2}}
-	r := &Retriever{Base: &baseList{chunks: chunks(4)}, Reranker: s, Depth: 4, Cache: cache}
-	first, _ := r.Retrieve(context.Background(), 1, "q", nil, 4)
+	r := &Retriever{Base: &baseList{chunks: chunks(4)}, Reranker: s, Depth: 4, Cache: cache, RecordDurations: true}
+	first, _ := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 4})
 	s.ranking = []int{1} // a different answer now; the cache must win
-	second, _ := r.Retrieve(context.Background(), 1, " q ", nil, 4)
+	second, _ := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: " q ", K: 4})
 	if s.calls != 1 || !reflect.DeepEqual(ids(first), ids(second)) || ids(first)[0] != 102 {
 		t.Errorf("calls %d, first %v, second %v", s.calls, ids(first), ids(second))
 	}
@@ -199,7 +200,7 @@ func TestCacheReusesRankingAndSkipsUpstream(t *testing.T) {
 	// A broken cache is ignored: reads fall through to the reranker, writes are dropped.
 	broken := &memStore{m: map[string]Entry{}, getErr: errors.New("db down"), putErr: errors.New("db down")}
 	r = &Retriever{Base: &baseList{chunks: chunks(4)}, Reranker: &scripted{ranking: []int{3}}, Depth: 4, Cache: broken}
-	got, err := r.Retrieve(context.Background(), 1, "q", nil, 4)
+	got, err := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 4})
 	if err != nil || ids(got)[0] != 103 {
 		t.Errorf("broken cache: %v %v", ids(got), err)
 	}
@@ -210,18 +211,18 @@ func TestPendingCountsOnlyCacheMisses(t *testing.T) {
 	s := &scripted{ranking: []int{0}}
 	r := &Retriever{Base: &baseList{chunks: chunks(4)}, Reranker: s, Depth: 4, Cache: cache}
 	ctx := context.Background()
-	if p, err := r.Pending(ctx, 1, "q", nil, 4); err != nil || !p {
+	if p, err := r.Pending(ctx, retrieval.Query{RepoID: 1, Text: "q", K: 4}); err != nil || !p {
 		t.Fatalf("before: pending %v %v", p, err)
 	}
-	r.Retrieve(ctx, 1, "q", nil, 4)
-	if p, err := r.Pending(ctx, 1, "q", nil, 4); err != nil || p {
+	r.Retrieve(ctx, retrieval.Query{RepoID: 1, Text: "q", K: 4})
+	if p, err := r.Pending(ctx, retrieval.Query{RepoID: 1, Text: "q", K: 4}); err != nil || p {
 		t.Errorf("after: pending %v %v", p, err)
 	}
 	if s.calls != 1 {
 		t.Errorf("Pending called the reranker: %d calls", s.calls)
 	}
 	empty := &Retriever{Base: &baseList{}, Reranker: s, Depth: 4, Cache: cache}
-	if p, _ := empty.Pending(ctx, 1, "q", nil, 4); p {
+	if p, _ := empty.Pending(ctx, retrieval.Query{RepoID: 1, Text: "q", K: 4}); p {
 		t.Error("no candidates needs no call")
 	}
 }
@@ -231,13 +232,13 @@ func TestPaceRunsBeforeUpstreamCallsOnly(t *testing.T) {
 	cache := newMem()
 	r := &Retriever{Base: &baseList{chunks: chunks(3)}, Reranker: &scripted{ranking: []int{1}}, Depth: 3, Cache: cache,
 		Pace: func(context.Context) error { paced++; return nil }}
-	r.Retrieve(context.Background(), 1, "q", nil, 3)
-	r.Retrieve(context.Background(), 1, "q", nil, 3) // cache hit
+	r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 3})
+	r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 3}) // cache hit
 	if paced != 1 {
 		t.Errorf("paced %d times, want 1", paced)
 	}
 	r.Pace = func(context.Context) error { return context.Canceled }
-	if _, err := r.Retrieve(context.Background(), 1, "other", nil, 3); !errors.Is(err, context.Canceled) {
+	if _, err := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "other", K: 3}); !errors.Is(err, context.Canceled) {
 		t.Errorf("pace error: %v", err)
 	}
 }
@@ -250,18 +251,18 @@ func TestRetrieveValidates(t *testing.T) {
 		{Base: b, Reranker: &scripted{}, Depth: 0},
 		{Base: b, Reranker: &scripted{}, Depth: retrieval.MaxK + 1},
 	} {
-		if _, err := r.Retrieve(context.Background(), 1, "q", nil, 3); !errors.Is(err, ErrBadConfig) {
+		if _, err := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 3}); !errors.Is(err, ErrBadConfig) {
 			t.Errorf("%+v: err %v", r, err)
 		}
 	}
 	r := &Retriever{Base: b, Reranker: &scripted{}, Depth: 3}
 	for _, k := range []int{0, retrieval.MaxK + 1} {
-		if _, err := r.Retrieve(context.Background(), 1, "q", nil, k); !errors.Is(err, retrieval.ErrInvalidK) {
+		if _, err := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: k}); !errors.Is(err, retrieval.ErrInvalidK) {
 			t.Errorf("k %d: err %v", k, err)
 		}
 	}
 	b.err = errors.New("db")
-	if _, err := r.Retrieve(context.Background(), 1, "q", nil, 3); err == nil {
+	if _, err := r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 3}); err == nil {
 		t.Error("base error swallowed")
 	}
 }
@@ -306,5 +307,48 @@ func TestStatsPercentile(t *testing.T) {
 	}
 	if s.Percentile(50) != 3*time.Millisecond || s.Percentile(90) != 5*time.Millisecond || s.Percentile(100) != 5*time.Millisecond {
 		t.Errorf("p50 %v p90 %v max %v", s.Percentile(50), s.Percentile(90), s.Percentile(100))
+	}
+}
+
+func TestDurationsAreKeptOnlyWhenAsked(t *testing.T) {
+	cache := newMem()
+	r := &Retriever{Base: &baseList{chunks: chunks(4)}, Reranker: &scripted{ranking: []int{2}}, Depth: 4, Cache: cache}
+	r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 4})
+	r.Retrieve(context.Background(), retrieval.Query{RepoID: 1, Text: "q", K: 4})
+	st := r.Stats()
+	if st.Calls != 1 || st.CacheHits != 1 || len(st.Durations) != 0 || len(st.CachedDurations) != 0 {
+		t.Errorf("stats %+v, want counters only", st)
+	}
+}
+
+func TestTraceRecordsRerankOutcome(t *testing.T) {
+	cache := newMem()
+	s := &scripted{ranking: []int{2, 0}}
+	r := &Retriever{Base: &baseList{chunks: chunks(4)}, Reranker: s, Depth: 4, Cache: cache}
+	q := retrieval.Query{RepoID: 1, Text: "q", K: 3}
+
+	ctx, tr := retrieval.WithTrace(context.Background())
+	got, _ := r.Retrieve(ctx, q)
+	d := tr.Snapshot()
+	if d.RerankSource != "upstream" || d.RerankFallback != "" || !reflect.DeepEqual(d.Reranked, ids(got)) || len(d.Reranked) != 3 {
+		t.Errorf("upstream trace %+v, got %v", d, ids(got))
+	}
+
+	ctx, tr = retrieval.WithTrace(context.Background())
+	r.Retrieve(ctx, q)
+	var stored Entry
+	for _, e := range cache.m {
+		stored = e
+	}
+	if d := tr.Snapshot(); d.RerankSource != "cache" || len(cache.m) != 1 || d.RerankMS != stored.Took.Milliseconds() {
+		t.Errorf("cache trace %+v", d)
+	}
+
+	s.err, s.ranking = errors.New("503"), nil
+	r = &Retriever{Base: &baseList{chunks: chunks(4)}, Reranker: s, Depth: 4}
+	ctx, tr = retrieval.WithTrace(context.Background())
+	got, _ = r.Retrieve(ctx, q)
+	if d := tr.Snapshot(); d.RerankSource != "upstream" || d.RerankFallback != "error" || !reflect.DeepEqual(d.Reranked, ids(got)) {
+		t.Errorf("fallback trace %+v", d)
 	}
 }

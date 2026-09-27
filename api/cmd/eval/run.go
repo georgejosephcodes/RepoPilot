@@ -89,7 +89,7 @@ func retrieveAll(ctx context.Context, qs []Question, vecs [][]float32, ids map[s
 	}
 	out := make([]QuestionResult, 0, len(qs))
 	for i, q := range qs {
-		chunks, err := r.Retrieve(ctx, ids[q.Repo], q.Question, vecs[i], Depth)
+		chunks, err := r.Retrieve(ctx, retrieval.Query{RepoID: ids[q.Repo], Text: q.Question, Vec: vecs[i], K: Depth})
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", q.ID, err)
 		}

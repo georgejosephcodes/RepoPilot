@@ -33,7 +33,8 @@ func (h HybridRetriever) validate() error {
 	return nil
 }
 
-func (h HybridRetriever) Retrieve(ctx context.Context, repoID int64, question string, queryVec []float32, k int) ([]Chunk, error) {
+func (h HybridRetriever) Retrieve(ctx context.Context, q Query) ([]Chunk, error) {
+	k := q.K
 	if k < 1 || k > MaxK {
 		return nil, ErrInvalidK
 	}
@@ -44,8 +45,10 @@ func (h HybridRetriever) Retrieve(ctx context.Context, repoID int64, question st
 	var vecErr, kwErr error
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go func() { defer wg.Done(); vec, vecErr = h.Vector.Retrieve(ctx, repoID, question, queryVec, h.Pool) }()
-	go func() { defer wg.Done(); kw, kwErr = h.Keyword.Retrieve(ctx, repoID, question, queryVec, h.Pool) }()
+	pq := q
+	pq.K = h.Pool
+	go func() { defer wg.Done(); vec, vecErr = h.Vector.Retrieve(ctx, pq) }()
+	go func() { defer wg.Done(); kw, kwErr = h.Keyword.Retrieve(ctx, pq) }()
 	wg.Wait()
 	if vecErr != nil {
 		return nil, vecErr
@@ -89,5 +92,6 @@ func (h HybridRetriever) Retrieve(ctx context.Context, repoID int64, question st
 	if len(out) > k {
 		out = out[:k]
 	}
+	TraceFrom(ctx).Record(func(d *TraceData) { d.Fused = ChunkIDs(out) })
 	return out, nil
 }

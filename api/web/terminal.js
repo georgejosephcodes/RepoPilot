@@ -355,18 +355,25 @@
       print("type 'show <n>' to view a snippet", "dim");
     }
     print(Core.formatStats(a.stats), "dim");
+    var note = Core.rerankNote(a.stats);
+    if (note) print(note, "dim");
   }
 
-  async function cmdAsk(question) {
+  async function cmdAsk(text) {
+    var opts = Core.parseAskOptions(text);
+    if (opts.error) return print("error: " + opts.error + "; " + Core.usageError("ask").replace(/^error: /, ""), "err");
+    var question = opts.question;
     if (question === "") return print(Core.usageError("ask"), "err");
     if (!state.active) return print("error: no_repo: run 'use <id>' first", "err");
     if (state.asking) return print("error: busy: wait for the previous answer", "err");
     var id = state.active.id;
+    var body = { question: question };
+    if (opts.filters) body.filters = opts.filters;
     state.asking = true;
     var pending = print("asking...", "dim");
     var r;
     try {
-      r = await api("POST", "/api/repositories/" + id + "/query", { question: question });
+      r = await api("POST", "/api/repositories/" + id + "/query", body);
     } finally {
       state.asking = false;
       pending.remove();
@@ -375,6 +382,8 @@
     var a = Core.normaliseAnswer(r.data);
     if (!a) return printError(Core.toError(r.status, null));
     if (!state.active || state.active.id !== id) return print("error: cancelled: the active repository changed while waiting", "err");
+    var fl = Core.filterLine(opts.filters);
+    if (fl) print(fl, "dim");
     renderResponse(a);
   }
 

@@ -14,8 +14,10 @@ import (
 	"repopilot/api/internal/embed"
 	"repopilot/api/internal/httpapi"
 	"repopilot/api/internal/llm"
+	"repopilot/api/internal/pipeline"
 	"repopilot/api/internal/rag"
 	"repopilot/api/internal/repos"
+	"repopilot/api/internal/rerank"
 	"repopilot/api/internal/retrieval"
 )
 
@@ -31,7 +33,8 @@ func main() {
 		addr = ":8080"
 	}
 	rateLimit := intEnv("RATE_LIMIT_PER_MIN", 30, 0)
-	queryRateLimit := intEnv("QUERY_RATE_LIMIT_PER_MIN", 10, 0)
+	// Each question makes 2 Gemini requests (rerank and answer) and Gemini allows 15 per minute (PHASE2.md 7.6).
+	queryRateLimit := intEnv("QUERY_RATE_LIMIT_PER_MIN", 7, 0)
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)
@@ -52,7 +55,7 @@ func main() {
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		// A question takes an embedding request plus a generation request, each with retries; the handler
+		// A question takes an embedding request, a rerank request and a generation request; the handler
 		// gives up after 90 seconds, so the server must not cut the connection first.
 		WriteTimeout: 120 * time.Second,
 	}
@@ -62,7 +65,7 @@ func main() {
 	}
 }
 
-// buildQueryService wires embedder, searcher and answer model. When a key is missing it returns nil, and the
+// buildQueryService wires embedder, retriever (RETRIEVAL_MODE) and answer model. When a key is missing it returns nil, and the
 // query route answers 503 not_configured while the rest of the API keeps working. A wrong configuration
 // (dimension mismatch, unreadable settings) is fatal: better to fail at startup than on the first question.
 func buildQueryService(ctx context.Context, pool *pgxpool.Pool, store repos.Store) httpapi.Asker {
@@ -86,6 +89,19 @@ func buildQueryService(ctx context.Context, pool *pgxpool.Pool, store repos.Stor
 	if err := retrieval.CheckSchema(ctx, pool); err != nil {
 		fatal(err.Error())
 	}
+	pipeCfg, err := pipeline.ConfigFromEnv(os.Getenv)
+	if err != nil {
+		fatal(err.Error())
+	}
+	var rerankLLM llm.LLM
+	if pipeCfg.Mode == pipeline.ModeHybridRerank {
+		if err := rerank.CheckSchema(ctx, pool); err != nil {
+			fatal(err.Error())
+		}
+		if rerankLLM, err = llm.NewGemini(rerank.LLMConfig(llmCfg)); err != nil {
+			fatal(err.Error())
+		}
+	}
 	if version, err := retrieval.CheckPgvector(ctx, pool); err != nil {
 		slog.Warn("pgvector check", "version", version, "error", err.Error())
 	}
@@ -98,13 +114,19 @@ func buildQueryService(ctx context.Context, pool *pgxpool.Pool, store repos.Stor
 	if err != nil {
 		fatal(err.Error())
 	}
-	slog.Info("question answering enabled",
-		"embed_model", embedder.ModelName(), "embed_dimension", embedder.Dimension(), "llm_model", answerer.ModelName())
+	retriever, err := pipeline.Build(pipeCfg, pool, embedder.ModelName(), embedder.Dimension(), rerankLLM)
+	if err != nil {
+		fatal(err.Error())
+	}
+	slog.Info("question answering enabled", append([]any{
+		"embed_model", embedder.ModelName(), "embed_dimension", embedder.Dimension(), "llm_model", answerer.ModelName()},
+		pipeCfg.Params()...)...)
 
 	return &rag.Service{
 		Repos:            store,
 		Embed:            embed.NewCached(embed.NewPersistent(embedder, embed.NewPgQueryStore(pool, embedder.Dimension()), embed.DefaultBatchSize), 256),
-		Search:           retrieval.NewPgSearcher(pool, embedder.ModelName(), embedder.Dimension()),
+		Retrieve:         retriever,
+		Mode:             pipeCfg.Mode,
 		LLM:              answerer,
 		TopK:             intEnv("RETRIEVAL_TOP_K", rag.DefaultTopK, 1),
 		BudgetChars:      intEnv("CONTEXT_BUDGET_CHARS", rag.DefaultBudgetChars, 1),

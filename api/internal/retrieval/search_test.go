@@ -95,7 +95,7 @@ func TestSearchOrdersByCosineDistance(t *testing.T) {
 	addChunk(t, pool, repo, "near", model, basis(0))
 	addChunk(t, pool, repo, "middle", model, mix(0, 1, 0.6, 0.8))
 
-	got, err := searcher(pool).Search(context.Background(), repo, basis(0), 10)
+	got, err := searcher(pool).Search(context.Background(), repo, basis(0), 10, Filter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestSearchNeverLeaksAnotherRepository(t *testing.T) {
 		addChunk(t, pool, a, fmt.Sprintf("a%d", i), model, basis(i))
 		addChunk(t, pool, b, fmt.Sprintf("b%d", i), model, basis(i)) // identical vectors in the other repository
 	}
-	got, err := searcher(pool).Search(context.Background(), a, basis(0), 10)
+	got, err := searcher(pool).Search(context.Background(), a, basis(0), 10, Filter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,13 +141,13 @@ func TestSearchRespectsKAndReturnsFewerWhenFewerExist(t *testing.T) {
 		addChunk(t, pool, repo, fmt.Sprintf("c%d", i), model, basis(i))
 	}
 	s := searcher(pool)
-	if got, _ := s.Search(context.Background(), repo, basis(0), 3); len(got) != 3 {
+	if got, _ := s.Search(context.Background(), repo, basis(0), 3, Filter{}); len(got) != 3 {
 		t.Fatalf("k=3 gave %d", len(got))
 	}
-	if got, _ := s.Search(context.Background(), repo, basis(0), 10); len(got) != 5 {
+	if got, _ := s.Search(context.Background(), repo, basis(0), 10, Filter{}); len(got) != 5 {
 		t.Fatalf("k=10 gave %d", len(got))
 	}
-	if got, _ := s.Search(context.Background(), repo, basis(0), 1); len(got) != 1 || got[0].FilePath != "c0" {
+	if got, _ := s.Search(context.Background(), repo, basis(0), 1, Filter{}); len(got) != 1 || got[0].FilePath != "c0" {
 		t.Fatalf("k=1 gave %v", names(got))
 	}
 }
@@ -155,11 +155,11 @@ func TestSearchRespectsKAndReturnsFewerWhenFewerExist(t *testing.T) {
 func TestSearchOnEmptyRepositoryReturnsEmptySlice(t *testing.T) {
 	pool := testPool(t)
 	repo := newRepo(t, pool)
-	got, err := searcher(pool).Search(context.Background(), repo, basis(0), 5)
+	got, err := searcher(pool).Search(context.Background(), repo, basis(0), 5, Filter{})
 	if err != nil || got == nil || len(got) != 0 {
 		t.Fatalf("got %v err %v", got, err)
 	}
-	got, err = searcher(pool).Search(context.Background(), -1, basis(0), 5) // unknown repository
+	got, err = searcher(pool).Search(context.Background(), -1, basis(0), 5, Filter{}) // unknown repository
 	if err != nil || len(got) != 0 {
 		t.Fatalf("unknown repo: got %v err %v", got, err)
 	}
@@ -170,11 +170,11 @@ func TestSearchRefusesAModelMismatch(t *testing.T) {
 	repo := newRepo(t, pool)
 	addChunk(t, pool, repo, "one", model, basis(0))
 	addChunk(t, pool, repo, "two", "some-other-model", basis(1))
-	if _, err := searcher(pool).Search(context.Background(), repo, basis(0), 5); !errors.Is(err, ErrModelMismatch) {
+	if _, err := searcher(pool).Search(context.Background(), repo, basis(0), 5, Filter{}); !errors.Is(err, ErrModelMismatch) {
 		t.Fatalf("err = %v, want ErrModelMismatch", err)
 	}
 	other := NewPgSearcher(pool, "some-other-model", dim)
-	if _, err := other.Search(context.Background(), repo, basis(0), 5); !errors.Is(err, ErrModelMismatch) {
+	if _, err := other.Search(context.Background(), repo, basis(0), 5, Filter{}); !errors.Is(err, ErrModelMismatch) {
 		t.Fatalf("mixed models must fail for every searcher, got %v", err)
 	}
 }
@@ -186,16 +186,16 @@ func TestSearchValidatesItsInput(t *testing.T) {
 	s := searcher(pool)
 	ctx := context.Background()
 	for _, k := range []int{0, -1, 51, 1000} {
-		if _, err := s.Search(ctx, repo, basis(0), k); !errors.Is(err, ErrInvalidK) {
+		if _, err := s.Search(ctx, repo, basis(0), k, Filter{}); !errors.Is(err, ErrInvalidK) {
 			t.Errorf("k=%d: err = %v", k, err)
 		}
 	}
-	if _, err := s.Search(ctx, repo, []float32{1, 2, 3}, 5); !errors.Is(err, ErrDimensionMismatch) {
+	if _, err := s.Search(ctx, repo, []float32{1, 2, 3}, 5, Filter{}); !errors.Is(err, ErrDimensionMismatch) {
 		t.Errorf("short vector: err = %v", err)
 	}
 	bad := basis(0)
 	bad[5] = float32(math.NaN())
-	if _, err := s.Search(ctx, repo, bad, 5); !errors.Is(err, ErrInvalidVector) {
+	if _, err := s.Search(ctx, repo, bad, 5, Filter{}); !errors.Is(err, ErrInvalidVector) {
 		t.Errorf("NaN: err = %v", err)
 	}
 }
@@ -206,7 +206,7 @@ func TestSearchHonoursContextCancellation(t *testing.T) {
 	addChunk(t, pool, repo, "one", model, basis(0))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := searcher(pool).Search(ctx, repo, basis(0), 5); err == nil {
+	if _, err := searcher(pool).Search(ctx, repo, basis(0), 5, Filter{}); err == nil {
 		t.Fatal("expected an error for a cancelled context")
 	}
 }
@@ -231,7 +231,7 @@ func TestSearchIsExactWhenAnotherRepositoryCrowdsTheNeighbourhood(t *testing.T) 
 	}
 
 	for run := 0; run < 3; run++ {
-		got, err := searcher(pool).Search(context.Background(), a, basis(0), 10)
+		got, err := searcher(pool).Search(context.Background(), a, basis(0), 10, Filter{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -246,7 +246,7 @@ func TestSearchIsExactWhenAnotherRepositoryCrowdsTheNeighbourhood(t *testing.T) 
 	}
 
 	// k larger than the number of related chunks reaches into the unrelated ones, still only from A
-	got, _ := searcher(pool).Search(context.Background(), a, basis(0), 20)
+	got, _ := searcher(pool).Search(context.Background(), a, basis(0), 20, Filter{})
 	if len(got) != 20 {
 		t.Fatalf("k=20 gave %d rows", len(got))
 	}
@@ -274,19 +274,25 @@ func TestSearchQueryDoesNotUseTheHNSWIndex(t *testing.T) {
 	if _, err := tx.Exec(ctx, "SET LOCAL enable_seqscan = off"); err != nil { // the strongest push toward an index
 		t.Fatal(err)
 	}
-	rows, err := tx.Query(ctx, "EXPLAIN "+searchSQL, literal, repo, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	var plan strings.Builder
-	for rows.Next() {
-		var line string
-		_ = rows.Scan(&line)
-		plan.WriteString(line + "\n")
-	}
-	if strings.Contains(plan.String(), "chunks_embedding_hnsw") {
-		t.Fatalf("the exact search must not use the approximate index:\n%s", plan.String())
+	// with and without a filter: the filter conditions must not open a path to the index either
+	for _, f := range []Filter{{}, {Languages: []string{"go"}, PathPrefix: "c"}} {
+		rows, err := tx.Query(ctx, "EXPLAIN "+searchSQL, literal, repo, 10, f.sqlLanguages(), f.PathPrefix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var plan strings.Builder
+		for rows.Next() {
+			var line string
+			_ = rows.Scan(&line)
+			plan.WriteString(line + "\n")
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(plan.String(), "chunks_embedding_hnsw") {
+			t.Fatalf("filter %+v: the exact search must not use the approximate index:\n%s", f, plan.String())
+		}
 	}
 }
 
@@ -299,7 +305,7 @@ func TestSearchOnASharedTableAlwaysFillsK(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		addChunk(t, pool, a, fmt.Sprintf("a%d", i), model, basis(20+i))
 	}
-	got, err := searcher(pool).Search(context.Background(), a, basis(0), 10)
+	got, err := searcher(pool).Search(context.Background(), a, basis(0), 10, Filter{})
 	if err != nil || len(got) != 10 {
 		t.Fatalf("got %d rows, err %v", len(got), err)
 	}

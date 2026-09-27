@@ -9,6 +9,7 @@ import (
 
 	"repopilot/api/internal/rag"
 	"repopilot/api/internal/repos"
+	"repopilot/api/internal/retrieval"
 )
 
 // Pinger reports whether a dependency (the database) is reachable.
@@ -16,9 +17,9 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
-// Asker answers a question about a repository. *rag.Service implements it; tests use a fake.
+// Asker answers a question about a repository, optionally filtered. *rag.Service implements it; tests use a fake.
 type Asker interface {
-	Ask(ctx context.Context, repoID int64, question string) (rag.Response, error)
+	Ask(ctx context.Context, repoID int64, question string, filter retrieval.Filter) (rag.Response, error)
 }
 
 type Deps struct {

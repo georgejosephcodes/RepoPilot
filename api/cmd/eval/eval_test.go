@@ -180,9 +180,9 @@ type fakeSearcher struct {
 	calls   []int
 }
 
-func (f *fakeSearcher) Retrieve(_ context.Context, repoID int64, _ string, _ []float32, k int) ([]retrieval.Chunk, error) {
-	f.calls = append(f.calls, k)
-	return f.results[repoID], nil
+func (f *fakeSearcher) Retrieve(_ context.Context, q retrieval.Query) ([]retrieval.Chunk, error) {
+	f.calls = append(f.calls, q.K)
+	return f.results[q.RepoID], nil
 }
 
 func chunk(id int64, file string, a, b int, dist float64) retrieval.Chunk {

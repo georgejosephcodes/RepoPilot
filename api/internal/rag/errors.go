@@ -24,6 +24,8 @@ func Classify(err error) Problem {
 	switch {
 	case errors.Is(err, ErrQuestionInvalid):
 		return Problem{http.StatusBadRequest, "invalid_request", "question is empty or too long"}
+	case errors.Is(err, retrieval.ErrInvalidFilter):
+		return Problem{http.StatusBadRequest, "invalid_request", err.Error()} // ValidateFilter's messages are safe to show
 	case errors.Is(err, repos.ErrNotFound):
 		return Problem{http.StatusNotFound, "not_found", "repository not found"}
 	case errors.Is(err, ErrNotReady):

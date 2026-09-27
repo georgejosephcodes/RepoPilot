@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"repopilot/api/internal/rag"
+	"repopilot/api/internal/retrieval"
 )
 
 // A question needs an embedding request plus a generation request, each with retries, so it gets more
@@ -34,6 +35,10 @@ func (h queryHandler) query(c *gin.Context) {
 	}
 	var req struct {
 		Question string `json:"question"`
+		Filters  struct {
+			Language   []string `json:"language"`
+			PathPrefix string   `json:"path_prefix"`
+		} `json:"filters"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var tooBig *http.MaxBytesError
@@ -41,13 +46,16 @@ func (h queryHandler) query(c *gin.Context) {
 			writeError(c, http.StatusRequestEntityTooLarge, "invalid_request", "request body too large")
 			return
 		}
-		writeError(c, http.StatusBadRequest, "invalid_request", `body must be JSON like {"question": "..."}`)
+		writeError(c, http.StatusBadRequest, "invalid_request",
+			`body must be JSON like {"question": "...", "filters": {"language": ["go"], "path_prefix": "api/"}} (filters optional)`)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), queryTimeout)
 	defer cancel()
-	resp, err := h.asker.Ask(ctx, id, req.Question)
+	// The filter's values are checked by the asker (retrieval.ValidateFilter), which answers 400 invalid_request.
+	filter := retrieval.Filter{Languages: req.Filters.Language, PathPrefix: req.Filters.PathPrefix}
+	resp, err := h.asker.Ask(ctx, id, req.Question, filter)
 	if err != nil {
 		p := rag.Classify(err)
 		if p.Status >= http.StatusInternalServerError {

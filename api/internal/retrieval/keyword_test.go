@@ -58,7 +58,7 @@ func TestKeywordFindsExactIdentifiersFirst(t *testing.T) {
 	}
 	for _, scorer := range []Scorer{ScoreTSRank, ScoreBM25} {
 		for q, want := range cases {
-			got, err := NewKeywordRetriever(pool, scorer).Retrieve(context.Background(), repo, q, nil, 5)
+			got, err := NewKeywordRetriever(pool, scorer).Retrieve(context.Background(), Query{RepoID: repo, Text: q, K: 5})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,7 +78,7 @@ func TestKeywordIsRepositoryScoped(t *testing.T) {
 	b := newRepo(t, pool)
 	addTextChunk(t, pool, b, "other/want_bytes.py", "want_bytes", "def want_bytes(): pass")
 	for _, scorer := range []Scorer{ScoreTSRank, ScoreBM25} {
-		got, err := NewKeywordRetriever(pool, scorer).Retrieve(context.Background(), a, "want_bytes", nil, 20)
+		got, err := NewKeywordRetriever(pool, scorer).Retrieve(context.Background(), Query{RepoID: a, Text: "want_bytes", K: 20})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -95,14 +95,14 @@ func TestKeywordRespectsKAndIsDeterministic(t *testing.T) {
 	repo := seedKeywordRepo(t, pool)
 	for _, scorer := range []Scorer{ScoreTSRank, ScoreBM25} {
 		r := NewKeywordRetriever(pool, scorer)
-		first, err := r.Retrieve(context.Background(), repo, "bytes want value", nil, 2)
+		first, err := r.Retrieve(context.Background(), Query{RepoID: repo, Text: "bytes want value", K: 2})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(first) != 2 {
 			t.Fatalf("scorer %d: got %d chunks, want 2", scorer, len(first))
 		}
-		again, _ := r.Retrieve(context.Background(), repo, "bytes want value", nil, 2)
+		again, _ := r.Retrieve(context.Background(), Query{RepoID: repo, Text: "bytes want value", K: 2})
 		if strings.Join(files(first), ",") != strings.Join(files(again), ",") {
 			t.Fatalf("scorer %d: order changed between runs", scorer)
 		}
@@ -112,14 +112,14 @@ func TestKeywordRespectsKAndIsDeterministic(t *testing.T) {
 func TestKeywordEmptyQueryAndBadInput(t *testing.T) {
 	pool := testPool(t)
 	repo := seedKeywordRepo(t, pool)
-	got, err := NewKeywordRetriever(pool, ScoreBM25).Retrieve(context.Background(), repo, "where is the", nil, 5)
+	got, err := NewKeywordRetriever(pool, ScoreBM25).Retrieve(context.Background(), Query{RepoID: repo, Text: "where is the", K: 5})
 	if err != nil || len(got) != 0 {
 		t.Fatalf("stopwords only: got %v, %v", got, err)
 	}
-	if _, err := NewKeywordRetriever(pool, ScoreBM25).Retrieve(context.Background(), repo, "x", nil, 0); !errors.Is(err, ErrInvalidK) {
+	if _, err := NewKeywordRetriever(pool, ScoreBM25).Retrieve(context.Background(), Query{RepoID: repo, Text: "x", K: 0}); !errors.Is(err, ErrInvalidK) {
 		t.Fatalf("k=0: %v", err)
 	}
-	if _, err := NewKeywordRetriever(pool, Scorer(9)).Retrieve(context.Background(), repo, "x", nil, 5); !errors.Is(err, ErrUnknownScorer) {
+	if _, err := NewKeywordRetriever(pool, Scorer(9)).Retrieve(context.Background(), Query{RepoID: repo, Text: "x", K: 5}); !errors.Is(err, ErrUnknownScorer) {
 		t.Fatalf("unknown scorer: %v", err)
 	}
 }
@@ -178,7 +178,7 @@ func TestKeywordCannotTellAnIdentifierFromTheSameWordsInProse(t *testing.T) {
 	addTextChunk(t, pool, repo, "src/encoding.py", "want_bytes", "def want_bytes(s):\n    return s.encode()")
 	addTextChunk(t, pool, repo, "docs/notes.md", "", "Sometimes you want bytes, not text.")
 	for _, scorer := range []Scorer{ScoreTSRank, ScoreBM25} {
-		got, err := NewKeywordRetriever(pool, scorer).Retrieve(context.Background(), repo, "want_bytes", nil, 5)
+		got, err := NewKeywordRetriever(pool, scorer).Retrieve(context.Background(), Query{RepoID: repo, Text: "want_bytes", K: 5})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -196,7 +196,7 @@ func TestHybridOverPostgresUsesBothLists(t *testing.T) {
 		Keyword: NewKeywordRetriever(pool, ScoreBM25),
 		RRFK:    60, KeywordWeight: 1, TestPenalty: 0.5, Pool: 20,
 	}
-	got, err := h.Retrieve(context.Background(), repo, "What does want_bytes do?", basis(0), 10)
+	got, err := h.Retrieve(context.Background(), Query{RepoID: repo, Text: "What does want_bytes do?", Vec: basis(0), K: 10})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,6 +22,7 @@ func TestClassify(t *testing.T) {
 		phrase string
 	}{
 		{ErrQuestionInvalid, 400, "invalid_request", "question"},
+		{fmt.Errorf("%w: unknown language \"rust\"", retrieval.ErrInvalidFilter), 400, "invalid_request", "unknown language"},
 		{repos.ErrNotFound, 404, "not_found", "not found"},
 		{ErrNotReady, 409, "repo_not_ready", "not indexed"},
 		{retrieval.ErrModelMismatch, 422, "model_mismatch", "re-index"},

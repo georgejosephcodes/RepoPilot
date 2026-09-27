@@ -2,6 +2,9 @@
 (function (root) {
   "use strict";
 
+  // The values of chunks.language (testdata/languages.json). The API checks filters again; this list is for help text.
+  var LANGUAGES = ["go", "javascript", "markdown", "python", "typescript"];
+
   var COMMANDS = [
     {
       name: "help",
@@ -33,9 +36,14 @@
     },
     {
       name: "ask",
-      usage: "ask <question>",
+      usage: "ask [--lang go,python] [--path dir/] <question>",
       summary: "ask the active repository (the 'ask' word is optional)",
-      detail: ["Answers cite the code as [n]. Click a [n] or run 'show n' to see the lines."],
+      detail: [
+        "Answers cite the code as [n]. Click a [n] or run 'show n' to see the lines.",
+        "--lang searches only these languages: " + LANGUAGES.join(", ") + ".",
+        "--path searches only files whose path starts with this text; 'api/' means the api folder.",
+        "Options come before the question; '--' ends them. Example: ask --lang go --path api/ where is the router built?",
+      ],
     },
     {
       name: "show",
@@ -74,6 +82,57 @@
     if (findCommand(word) === null) return { kind: "ask", question: text };
     if (word === "ask") return { kind: "ask", question: rest };
     return { kind: "command", name: word, args: rest === "" ? [] : rest.split(/\s+/), rest: rest };
+  }
+
+  // Reads --lang and --path options from the start of a question. Values follow the option after a space or '=';
+  // --lang takes a comma list and may repeat. '--' ends the options. Returns {question, filters, error}: filters is
+  // null when no option was given, else {language: [...], path_prefix: "..."} with only the fields that were set.
+  function parseAskOptions(text) {
+    var rest = String(text == null ? "" : text).trim();
+    var langs = [];
+    var path = null;
+    var any = false;
+    for (;;) {
+      var m = /^(--[^\s=]*)(?:=(\S*))?(?:\s+|$)/.exec(rest);
+      if (!m) break;
+      var opt = m[1];
+      rest = rest.slice(m[0].length);
+      if (opt === "--") break;
+      if (opt !== "--lang" && opt !== "--path") return { question: "", filters: null, error: "unknown option " + opt };
+      var value = m[2];
+      if (value === undefined) {
+        var v = /^(\S+)(?:\s+|$)/.exec(rest);
+        if (!v || v[1].slice(0, 2) === "--") return { question: "", filters: null, error: opt + " needs a value" };
+        value = v[1];
+        rest = rest.slice(v[0].length);
+      }
+      if (value === "") return { question: "", filters: null, error: opt + " needs a value" };
+      any = true;
+      if (opt === "--path") {
+        if (path !== null) return { question: "", filters: null, error: "--path given twice" };
+        path = value;
+      } else {
+        value.split(",").forEach(function (l) {
+          if (l !== "" && langs.indexOf(l) === -1) langs.push(l);
+        });
+      }
+    }
+    var filters = null;
+    if (any) {
+      filters = {};
+      if (langs.length > 0) filters.language = langs;
+      if (path !== null) filters.path_prefix = path;
+    }
+    return { question: rest.trim(), filters: filters, error: null };
+  }
+
+  // 'filters: language go, python · path api/' for the lines above an answer; null without filters.
+  function filterLine(filters) {
+    if (!filters) return null;
+    var parts = [];
+    if (filters.language && filters.language.length) parts.push("language " + filters.language.join(", "));
+    if (filters.path_prefix) parts.push("path " + filters.path_prefix);
+    return parts.length ? "filters: " + parts.join(" · ") : null;
   }
 
   function padRight(s, n) {
@@ -240,6 +299,22 @@
     });
   }
 
+  // The mode part of the stats line: 'hybrid_rerank (rerank 1.7s)', '(rerank cached)' or '(rerank failed)'.
+  function modeText(s) {
+    if (typeof s.retrieval_mode !== "string" || s.retrieval_mode === "") return "";
+    var extra = "";
+    if (s.rerank_fallback) extra = " (rerank failed)";
+    else if (s.rerank_cached) extra = " (rerank cached)";
+    else if (s.rerank_ms > 0) extra = " (rerank " + (s.rerank_ms / 1000).toFixed(1) + "s)";
+    return s.retrieval_mode + extra + " · ";
+  }
+
+  // A dim note when the reranker failed and the hybrid order was used; null otherwise.
+  function rerankNote(s) {
+    if (!s || typeof s.rerank_fallback !== "string" || s.rerank_fallback === "") return null;
+    return "rerank failed (" + s.rerank_fallback + "); hybrid order used";
+  }
+
   function formatStats(s) {
     s = s || {};
     var ms = (s.embed_ms || 0) + (s.search_ms || 0) + (s.llm_ms || 0);
@@ -247,6 +322,7 @@
     return (
       (ms / 1000).toFixed(1) +
       "s · " +
+      modeText(s) +
       chunks +
       (chunks === 1 ? " chunk" : " chunks") +
       " · " +
@@ -337,7 +413,11 @@
   root.RPCore = {
     COMMANDS: COMMANDS,
     findCommand: findCommand,
+    LANGUAGES: LANGUAGES,
     parseInput: parseInput,
+    parseAskOptions: parseAskOptions,
+    filterLine: filterLine,
+    rerankNote: rerankNote,
     formatTable: formatTable,
     shortSha: shortSha,
     formatDate: formatDate,

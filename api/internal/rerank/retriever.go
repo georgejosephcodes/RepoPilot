@@ -43,12 +43,15 @@ type Retriever struct {
 	Timeout  time.Duration // per upstream call; <= 0 means DefaultTimeout
 	// Pace, when set, is called before every upstream call (never on a cache hit), outside the timeout.
 	Pace func(ctx context.Context) error
+	// RecordDurations keeps every ranking's time in Stats (for percentiles in eval). Off, the slices stay empty,
+	// so a long-running server does not grow them without bound; the counters are kept either way.
+	RecordDurations bool
 
 	stats Stats
 	mu    sync.Mutex
 }
 
-// Stats counts what the reranker did. Durations exclude pacing.
+// Stats counts what the reranker did. Durations exclude pacing and are kept only with RecordDurations.
 type Stats struct {
 	Calls     int            // upstream calls
 	CacheHits int            // rankings reused from the cache
@@ -102,34 +105,41 @@ func (r *Retriever) validate() error {
 }
 
 // candidates fetches enough from Base for both the rerank depth and k.
-func (r *Retriever) candidates(ctx context.Context, repoID int64, question string, queryVec []float32, k int) ([]retrieval.Chunk, error) {
-	if k < 1 || k > retrieval.MaxK {
+func (r *Retriever) candidates(ctx context.Context, q retrieval.Query) ([]retrieval.Chunk, error) {
+	if q.K < 1 || q.K > retrieval.MaxK {
 		return nil, retrieval.ErrInvalidK
 	}
 	if err := r.validate(); err != nil {
 		return nil, err
 	}
-	return r.Base.Retrieve(ctx, repoID, question, queryVec, max(k, r.Depth))
+	bq := q
+	bq.K = max(q.K, r.Depth)
+	return r.Base.Retrieve(ctx, bq)
 }
 
-func (r *Retriever) Retrieve(ctx context.Context, repoID int64, question string, queryVec []float32, k int) ([]retrieval.Chunk, error) {
-	base, err := r.candidates(ctx, repoID, question, queryVec, k)
+func (r *Retriever) Retrieve(ctx context.Context, q retrieval.Query) ([]retrieval.Chunk, error) {
+	base, err := r.candidates(ctx, q)
 	if err != nil {
 		return nil, err
 	}
 	head := base[:min(r.Depth, len(base))]
-	ranking, err := r.ranking(ctx, question, head)
+	ranking, o, err := r.ranking(ctx, q.Text, head)
 	if err != nil {
 		return nil, err // only a cancelled context gets here; every reranker failure falls back
 	}
 	out := Apply(base, ranking)
-	return out[:min(k, len(out))], nil
+	out = out[:min(q.K, len(out))]
+	retrieval.TraceFrom(ctx).Record(func(d *retrieval.TraceData) {
+		d.RerankMS, d.RerankSource, d.RerankFallback = o.took.Milliseconds(), o.source, o.fallback
+		d.Reranked = retrieval.ChunkIDs(out)
+	})
+	return out, nil
 }
 
 // Pending reports whether this question would need an upstream call (its ranking is not cached). It runs Base,
 // which is cheap, and never calls the reranker.
-func (r *Retriever) Pending(ctx context.Context, repoID int64, question string, queryVec []float32, k int) (bool, error) {
-	base, err := r.candidates(ctx, repoID, question, queryVec, k)
+func (r *Retriever) Pending(ctx context.Context, q retrieval.Query) (bool, error) {
+	base, err := r.candidates(ctx, q)
 	if err != nil {
 		return false, err
 	}
@@ -137,36 +147,48 @@ func (r *Retriever) Pending(ctx context.Context, repoID int64, question string, 
 	if len(head) == 0 || r.Cache == nil {
 		return len(head) > 0, nil
 	}
-	_, ok, err := r.Cache.Get(ctx, Key(r.Reranker.Name(), question, head))
+	_, ok, err := r.Cache.Get(ctx, Key(r.Reranker.Name(), q.Text, head))
 	if err != nil {
 		return false, err
 	}
 	return !ok, nil
 }
 
+// outcome says where a ranking came from, for the trace.
+type outcome struct {
+	source   string // "upstream", "cache", or empty when nothing was reranked
+	took     time.Duration
+	fallback string // failure reason when the base order was used
+}
+
 // ranking returns the reranker's order for head: from the cache, from an upstream call, or nil (Base order) on
 // failure. It returns an error only when ctx is done.
-func (r *Retriever) ranking(ctx context.Context, question string, head []retrieval.Chunk) ([]int, error) {
+func (r *Retriever) ranking(ctx context.Context, question string, head []retrieval.Chunk) ([]int, outcome, error) {
 	if len(head) == 0 {
-		return nil, nil
+		return nil, outcome{}, nil
 	}
 	key := Key(r.Reranker.Name(), question, head)
 	if r.Cache != nil {
 		e, ok, err := r.Cache.Get(ctx, key)
 		switch {
 		case err != nil && ctx.Err() != nil:
-			return nil, ctx.Err()
+			return nil, outcome{}, ctx.Err()
 		case err != nil:
 			slog.Warn("rerank cache read failed", "error", err)
 		case ok:
-			r.count(func(s *Stats) { s.CacheHits++; s.CachedDurations = append(s.CachedDurations, e.Took) })
-			return e.Ranking, nil
+			r.count(func(s *Stats) {
+				s.CacheHits++
+				if r.RecordDurations {
+					s.CachedDurations = append(s.CachedDurations, e.Took)
+				}
+			})
+			return e.Ranking, outcome{source: "cache", took: e.Took}, nil
 		}
 	}
 
 	if r.Pace != nil {
 		if err := r.Pace(ctx); err != nil {
-			return nil, err
+			return nil, outcome{}, err
 		}
 	}
 	timeout := r.Timeout
@@ -178,11 +200,16 @@ func (r *Retriever) ranking(ctx context.Context, question string, head []retriev
 	ranking, err := r.Reranker.Rerank(callCtx, question, head)
 	took := time.Since(start)
 	cancel()
-	r.count(func(s *Stats) { s.Calls++; s.Durations = append(s.Durations, took) })
+	r.count(func(s *Stats) {
+		s.Calls++
+		if r.RecordDurations {
+			s.Durations = append(s.Durations, took)
+		}
+	})
 
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return nil, outcome{}, ctx.Err()
 		}
 		reason := "error"
 		switch {
@@ -198,14 +225,14 @@ func (r *Retriever) ranking(ctx context.Context, question string, head []retriev
 			s.Fallbacks[reason]++
 		})
 		slog.Warn("rerank failed, using base order", "reason", reason, "error", err, "ms", took.Milliseconds())
-		return nil, nil
+		return nil, outcome{source: "upstream", took: took, fallback: reason}, nil
 	}
 	if r.Cache != nil {
 		if err := r.Cache.Put(ctx, key, r.Reranker.Name(), Entry{Ranking: ranking, Took: took}); err != nil {
 			slog.Warn("rerank cache write failed", "error", err)
 		}
 	}
-	return ranking, nil
+	return ranking, outcome{source: "upstream", took: took}, nil
 }
 
 func (r *Retriever) count(fn func(*Stats)) {

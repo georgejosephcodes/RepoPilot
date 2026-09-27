@@ -183,7 +183,7 @@ func main() {
 			fatal(err.Error())
 		}
 		rr = &rerank.Retriever{Base: retriever, Reranker: rerank.LLMReranker{LLM: model}, Depth: *rerankDepth,
-			Cache: rerank.NewPgStore(pool), Pace: pacer(rerankGap)}
+			Cache: rerank.NewPgStore(pool), Pace: pacer(rerankGap), RecordDurations: true}
 		retriever = rr
 	}
 
@@ -295,7 +295,7 @@ func paramsFor(variant string, hp hybridParams, rerankDepth int) map[string]floa
 func countPending(ctx context.Context, rr *rerank.Retriever, qs []Question, vecs [][]float32, ids map[string]int64) (int, error) {
 	n := 0
 	for i, q := range qs {
-		p, err := rr.Pending(ctx, ids[q.Repo], q.Question, vecs[i], Depth)
+		p, err := rr.Pending(ctx, retrieval.Query{RepoID: ids[q.Repo], Text: q.Question, Vec: vecs[i], K: Depth})
 		if err != nil {
 			return 0, fmt.Errorf("%s: %w", q.ID, err)
 		}

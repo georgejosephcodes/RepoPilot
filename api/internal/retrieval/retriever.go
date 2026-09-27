@@ -4,22 +4,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Retriever returns up to k chunks of one repository for a question, best first. A retriever may use the
-// question text, its vector, or both.
+// Retriever returns up to q.K chunks of one repository for a question, best first, that match q.Filter. A
+// retriever may use the question text, its vector, or both. It records what it did in the context's Trace, if any.
 type Retriever interface {
-	Retrieve(ctx context.Context, repoID int64, question string, queryVec []float32, k int) ([]Chunk, error)
+	Retrieve(ctx context.Context, q Query) ([]Chunk, error)
 }
 
 // VectorRetriever is Phase 1 retrieval: exact cosine search on the question vector.
 type VectorRetriever struct{ Searcher Searcher }
 
-func (v VectorRetriever) Retrieve(ctx context.Context, repoID int64, _ string, queryVec []float32, k int) ([]Chunk, error) {
-	return v.Searcher.Search(ctx, repoID, queryVec, k)
+func (v VectorRetriever) Retrieve(ctx context.Context, q Query) ([]Chunk, error) {
+	start := time.Now()
+	out, err := v.Searcher.Search(ctx, q.RepoID, q.Vec, q.K, q.Filter)
+	if err == nil {
+		TraceFrom(ctx).Record(func(d *TraceData) { d.VectorMS, d.Vector = time.Since(start).Milliseconds(), ChunkIDs(out) })
+	}
+	return out, err
 }
 
 // Scorer picks how keyword matches are ranked.
@@ -59,11 +65,14 @@ const tsRankSQL = `
 SELECT ` + chunkColumns + `, ts_rank_cd(c.search_tsv, q, 1) AS score
 FROM chunks c, to_tsquery('simple', $2) q
 WHERE c.repo_id = $1 AND c.search_tsv @@ q
+  AND (cardinality($4::text[]) = 0 OR c.language = ANY($4::text[]))
+  AND starts_with(c.file_path, $5)
 ORDER BY score DESC, c.id
 LIMIT $3`
 
 // BM25 with statistics computed at query time from this repository's chunks. Term frequency counts positions,
-// with weight-A positions (symbol and path) counted twice; chunk length is its number of distinct lexemes.
+// with weight-A positions (symbol and path) counted twice; chunk length is its number of distinct lexemes. The
+// filter ($8, $9) is applied only after scoring, so statistics stay repository-wide and a filter never rescores.
 const bm25SQL = `
 WITH q AS (SELECT to_tsquery('simple', $2) AS tq),
 docs AS (SELECT id, length(search_tsv)::float8 AS dl FROM chunks WHERE repo_id = $1),
@@ -85,14 +94,26 @@ scored AS (
 SELECT ` + chunkColumns + `,
        sc.score * CASE WHEN c.search_tsv @@ q.tq THEN $7::float8 ELSE 1 END AS score
 FROM scored sc JOIN chunks c ON c.id = sc.id CROSS JOIN q
+WHERE (cardinality($8::text[]) = 0 OR c.language = ANY($8::text[]))
+  AND starts_with(c.file_path, $9)
 ORDER BY score DESC, c.id
 LIMIT $4`
 
-func (r *KeywordRetriever) Retrieve(ctx context.Context, repoID int64, question string, _ []float32, k int) ([]Chunk, error) {
+func (r *KeywordRetriever) Retrieve(ctx context.Context, q Query) ([]Chunk, error) {
+	start := time.Now()
+	out, err := r.retrieve(ctx, q)
+	if err == nil {
+		TraceFrom(ctx).Record(func(d *TraceData) { d.KeywordMS, d.Keyword = time.Since(start).Milliseconds(), ChunkIDs(out) })
+	}
+	return out, err
+}
+
+func (r *KeywordRetriever) retrieve(ctx context.Context, q Query) ([]Chunk, error) {
+	repoID, k := q.RepoID, q.K
 	if k < 1 || k > MaxK {
 		return nil, ErrInvalidK
 	}
-	kq := QueryTerms(question)
+	kq := QueryTerms(q.Text)
 	if kq.TSQuery == "" {
 		return []Chunk{}, nil
 	}
@@ -100,9 +121,10 @@ func (r *KeywordRetriever) Retrieve(ctx context.Context, repoID int64, question 
 	var args []any
 	switch r.scorer {
 	case ScoreTSRank:
-		sql, args = tsRankSQL, []any{repoID, kq.TSQuery, k}
+		sql, args = tsRankSQL, []any{repoID, kq.TSQuery, k, q.Filter.sqlLanguages(), q.Filter.PathPrefix}
 	case ScoreBM25:
-		sql, args = bm25SQL, []any{repoID, kq.TSQuery, kq.Lexemes, k, bm25K1, bm25B, bm25PhraseBoost}
+		sql, args = bm25SQL, []any{repoID, kq.TSQuery, kq.Lexemes, k, bm25K1, bm25B, bm25PhraseBoost,
+			q.Filter.sqlLanguages(), q.Filter.PathPrefix}
 	default:
 		return nil, ErrUnknownScorer
 	}

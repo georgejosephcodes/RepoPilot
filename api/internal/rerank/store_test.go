@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"repopilot/api/internal/retrieval"
 )
 
 // DB-backed tests run only when TEST_DATABASE_URL is set (the dev database with migrations/004 applied).
@@ -72,12 +74,12 @@ func TestRetrieverOverPgStore(t *testing.T) {
 	t.Cleanup(func() {
 		pool.Exec(context.Background(), `DELETE FROM rerank_cache WHERE cache_key = $1`, Key(s.Name(), question, chunks(3)))
 	})
-	first, err := r.Retrieve(ctx, 1, question, nil, 3)
+	first, err := r.Retrieve(ctx, retrieval.Query{RepoID: 1, Text: question, K: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
 	fresh := &Retriever{Base: &baseList{chunks: chunks(3)}, Reranker: &scripted{ranking: []int{1}}, Depth: 3, Cache: NewPgStore(pool)}
-	second, err := fresh.Retrieve(ctx, 1, question, nil, 3)
+	second, err := fresh.Retrieve(ctx, retrieval.Query{RepoID: 1, Text: question, K: 3})
 	if err != nil {
 		t.Fatal(err)
 	}

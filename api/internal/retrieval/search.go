@@ -24,8 +24,9 @@ type Chunk struct {
 }
 
 type Searcher interface {
-	// Search returns up to k chunks of one repository, nearest first. An empty repository gives an empty slice.
-	Search(ctx context.Context, repoID int64, queryVec []float32, k int) ([]Chunk, error)
+	// Search returns up to k chunks of one repository that match f, nearest first. An empty repository, or a filter
+	// that matches nothing, gives an empty slice.
+	Search(ctx context.Context, repoID int64, queryVec []float32, k int, f Filter) ([]Chunk, error)
 }
 
 // The vector goes in as text and is cast on the server, so pgx needs no knowledge of the halfvec type.
@@ -37,12 +38,14 @@ type Searcher interface {
 // capped by hnsw.max_scan_tuples and a work_mem-based memory budget, and with 2048-dimension vectors the
 // budget is spent after about a thousand rows. Measured: with iterative scan on, a filtered search
 // returned 0 rows when it needed 10. Per-repository scans are small, so exact
-// search costs milliseconds and always returns k rows. `id` makes ties deterministic.
+// search costs milliseconds and always returns k rows. `id` makes ties deterministic. The filter only removes rows.
 const searchSQL = `
 SELECT id, file_path, language, COALESCE(symbol, ''), kind, start_line, end_line, content,
        embedding <=> $1::text::halfvec AS distance
 FROM chunks
 WHERE repo_id = $2
+  AND (cardinality($4::text[]) = 0 OR language = ANY($4::text[]))
+  AND starts_with(file_path, $5)
 ORDER BY (embedding <=> $1::text::halfvec) + 0, id
 LIMIT $3`
 
@@ -60,7 +63,7 @@ func NewPgSearcher(pool *pgxpool.Pool, model string, dim int) *PgSearcher {
 	return &PgSearcher{pool: pool, model: model, dim: dim}
 }
 
-func (s *PgSearcher) Search(ctx context.Context, repoID int64, queryVec []float32, k int) ([]Chunk, error) {
+func (s *PgSearcher) Search(ctx context.Context, repoID int64, queryVec []float32, k int, f Filter) ([]Chunk, error) {
 	if k < 1 || k > MaxK {
 		return nil, ErrInvalidK
 	}
@@ -92,7 +95,7 @@ func (s *PgSearcher) Search(ctx context.Context, repoID int64, queryVec []float3
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, searchSQL, literal, repoID, k)
+	rows, err := tx.Query(ctx, searchSQL, literal, repoID, k, f.sqlLanguages(), f.PathPrefix)
 	if err != nil {
 		return nil, err
 	}
