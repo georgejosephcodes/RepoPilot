@@ -1,0 +1,67 @@
+{
+  "comment": "Loaded by BOTH worker/tests/test_embed_contract.py and api/internal/embed/contract_test.go. If either side changes its request format, one of them fails.",
+  "defaults": {
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "nvidia/nemotron-3-embed-1b:free",
+    "dimension": 2048,
+    "send_dimensions": false,
+    "input_types": true,
+    "max_chars": 8000
+  },
+  "request_cases": [
+    {
+      "name": "query with defaults",
+      "config": {"model": "m", "dimension": 4, "send_dimensions": false, "input_types": true},
+      "kind": "query",
+      "texts": ["where is auth?"],
+      "body": {"model": "m", "input": ["where is auth?"], "input_type": "search_query"}
+    },
+    {
+      "name": "query that also sends dimensions",
+      "config": {"model": "m", "dimension": 4, "send_dimensions": true, "input_types": true},
+      "kind": "query",
+      "texts": ["q"],
+      "body": {"model": "m", "input": ["q"], "input_type": "search_query", "dimensions": 4}
+    },
+    {
+      "name": "query without input types",
+      "config": {"model": "m", "dimension": 4, "send_dimensions": false, "input_types": false},
+      "kind": "query",
+      "texts": ["q"],
+      "body": {"model": "m", "input": ["q"]}
+    },
+    {
+      "name": "query with unicode",
+      "config": {"model": "org/model:free", "dimension": 4, "send_dimensions": false, "input_types": true},
+      "kind": "query",
+      "texts": ["héllo 世界"],
+      "body": {"model": "org/model:free", "input": ["héllo 世界"], "input_type": "search_query"}
+    },
+    {
+      "name": "documents use search_document",
+      "config": {"model": "m", "dimension": 4, "send_dimensions": false, "input_types": true},
+      "kind": "documents",
+      "texts": ["a", "b"],
+      "body": {"model": "m", "input": ["a", "b"], "input_type": "search_document"}
+    },
+    {
+      "name": "documents that also send dimensions",
+      "config": {"model": "m", "dimension": 4, "send_dimensions": true, "input_types": true},
+      "kind": "documents",
+      "texts": ["a"],
+      "body": {"model": "m", "input": ["a"], "input_type": "search_document", "dimensions": 4}
+    }
+  ],
+  "truncation": [
+    {"max_chars": 5, "input": "abcdefgh", "expected": "abcde"},
+    {"max_chars": 3, "input": "héllo", "expected": "hél"},
+    {"max_chars": 2, "input": "世界世", "expected": "世界"},
+    {"max_chars": 10, "input": "short", "expected": "short"},
+    {"max_chars": 5, "input": "exact", "expected": "exact"}
+  ],
+  "normalization": [
+    {"raw": [3, 4], "expected": [0.6, 0.8]},
+    {"raw": [0.5, 0, 0, 0], "expected": [1, 0, 0, 0]},
+    {"raw": [1, 1, 1, 1], "expected": [0.5, 0.5, 0.5, 0.5]}
+  ]
+}

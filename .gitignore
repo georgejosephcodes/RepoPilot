@@ -1,0 +1,30 @@
+.env
+*.local
+worker/.venv/
+__pycache__/
+*.pyc
+api/bin/
+models.txt
+gemini_probe.txt
+probe_out.txt
+openrouter_probe.txt
+gemini_generate_probe.txt
+
+# private working notes and pasted screenshots
+DEVLOG.md
+PHASE1.md
+image*.png
+
+# tool and editor folders, sandbox placeholders
+.claude
+.idea
+.vscode
+.mcp.json
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+.gitmodules
+.ripgreprc

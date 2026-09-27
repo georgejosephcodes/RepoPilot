@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RepoPilot</title>
+<link rel="stylesheet" href="/terminal.css">
+<script src="/core.js" defer></script>
+<script src="/terminal.js" defer></script>
+</head>
+<body>
+<main>
+<div id="log" role="log" aria-live="polite" aria-label="Terminal output"></div>
+<form id="prompt-form" autocomplete="off">
+<label for="cmd" class="sr-only">Command or question</label>
+<span id="prompt" aria-hidden="true">repopilot ~ (no repo) ▸</span>
+<input id="cmd" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" enterkeyhint="send" autofocus>
+</form>
+</main>
+</body>
+</html>

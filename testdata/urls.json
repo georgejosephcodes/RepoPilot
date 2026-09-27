@@ -1,0 +1,397 @@
+[
+  {
+    "name": "plain",
+    "input": "https://github.com/golang/go",
+    "valid": true,
+    "owner": "golang",
+    "repo": "go",
+    "canonical": "https://github.com/golang/go"
+  },
+  {
+    "name": "dot git suffix",
+    "input": "https://github.com/golang/go.git",
+    "valid": true,
+    "owner": "golang",
+    "repo": "go",
+    "canonical": "https://github.com/golang/go"
+  },
+  {
+    "name": "trailing slash",
+    "input": "https://github.com/golang/go/",
+    "valid": true,
+    "owner": "golang",
+    "repo": "go",
+    "canonical": "https://github.com/golang/go"
+  },
+  {
+    "name": "dot git and trailing slash",
+    "input": "https://github.com/golang/go.git/",
+    "valid": true,
+    "owner": "golang",
+    "repo": "go",
+    "canonical": "https://github.com/golang/go"
+  },
+  {
+    "name": "uppercase scheme and host",
+    "input": "HTTPS://GitHub.com/Foo/Bar",
+    "valid": true,
+    "owner": "Foo",
+    "repo": "Bar",
+    "canonical": "https://github.com/Foo/Bar"
+  },
+  {
+    "name": "dots dashes underscores in name",
+    "input": "https://github.com/my-org/my.repo_name-1",
+    "valid": true,
+    "owner": "my-org",
+    "repo": "my.repo_name-1",
+    "canonical": "https://github.com/my-org/my.repo_name-1"
+  },
+  {
+    "name": "single char owner and name",
+    "input": "https://github.com/a/b",
+    "valid": true,
+    "owner": "a",
+    "repo": "b",
+    "canonical": "https://github.com/a/b"
+  },
+  {
+    "name": "digits and inner hyphen owner",
+    "input": "https://github.com/a-b1/c",
+    "valid": true,
+    "owner": "a-b1",
+    "repo": "c",
+    "canonical": "https://github.com/a-b1/c"
+  },
+  {
+    "name": "surrounding whitespace trimmed",
+    "input": "  https://github.com/a/b\n",
+    "valid": true,
+    "owner": "a",
+    "repo": "b",
+    "canonical": "https://github.com/a/b"
+  },
+  {
+    "name": "http scheme",
+    "input": "http://github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "ssh scheme",
+    "input": "ssh://git@github.com/a/b.git",
+    "valid": false
+  },
+  {
+    "name": "scp style",
+    "input": "git@github.com:a/b.git",
+    "valid": false
+  },
+  {
+    "name": "file scheme",
+    "input": "file:///etc/passwd",
+    "valid": false
+  },
+  {
+    "name": "ftp scheme",
+    "input": "ftp://github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "no scheme",
+    "input": "github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "gitlab host",
+    "input": "https://gitlab.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "suffix host",
+    "input": "https://github.com.evil.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "github in path",
+    "input": "https://evil.com/github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "www subdomain",
+    "input": "https://www.github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "api subdomain",
+    "input": "https://api.github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "port",
+    "input": "https://github.com:8443/a/b",
+    "valid": false
+  },
+  {
+    "name": "userinfo host trick",
+    "input": "https://github.com@evil.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "userinfo password",
+    "input": "https://user:pw@github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "empty userinfo",
+    "input": "https://@github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "missing repo",
+    "input": "https://github.com/a",
+    "valid": false
+  },
+  {
+    "name": "missing repo trailing slash",
+    "input": "https://github.com/a/",
+    "valid": false
+  },
+  {
+    "name": "three segments",
+    "input": "https://github.com/a/b/c",
+    "valid": false
+  },
+  {
+    "name": "tree path",
+    "input": "https://github.com/a/b/tree/main",
+    "valid": false
+  },
+  {
+    "name": "issues path",
+    "input": "https://github.com/a/b/issues/1",
+    "valid": false
+  },
+  {
+    "name": "double trailing slash",
+    "input": "https://github.com/a/b//",
+    "valid": false
+  },
+  {
+    "name": "root only",
+    "input": "https://github.com/",
+    "valid": false
+  },
+  {
+    "name": "no path",
+    "input": "https://github.com",
+    "valid": false
+  },
+  {
+    "name": "empty",
+    "input": "",
+    "valid": false
+  },
+  {
+    "name": "whitespace only",
+    "input": "   ",
+    "valid": false
+  },
+  {
+    "name": "upload-pack flag",
+    "input": "--upload-pack=touch /tmp/x",
+    "valid": false
+  },
+  {
+    "name": "flag as owner",
+    "input": "-x/y",
+    "valid": false
+  },
+  {
+    "name": "flag as url",
+    "input": "--help",
+    "valid": false
+  },
+  {
+    "name": "owner leading hyphen",
+    "input": "https://github.com/-a/b",
+    "valid": false
+  },
+  {
+    "name": "owner trailing hyphen",
+    "input": "https://github.com/a-/b",
+    "valid": false
+  },
+  {
+    "name": "name leading hyphen",
+    "input": "https://github.com/a/-b",
+    "valid": false
+  },
+  {
+    "name": "semicolon",
+    "input": "https://github.com/a/b;rm -rf /",
+    "valid": false
+  },
+  {
+    "name": "backtick",
+    "input": "https://github.com/a/`id`",
+    "valid": false
+  },
+  {
+    "name": "command substitution",
+    "input": "https://github.com/a/$(id)",
+    "valid": false
+  },
+  {
+    "name": "pipe",
+    "input": "https://github.com/a/b|id",
+    "valid": false
+  },
+  {
+    "name": "ampersand",
+    "input": "https://github.com/a/b&id",
+    "valid": false
+  },
+  {
+    "name": "space in path",
+    "input": "https://github.com/a/b c",
+    "valid": false
+  },
+  {
+    "name": "newline inside",
+    "input": "https://github.com/a/b\nfoo",
+    "valid": false
+  },
+  {
+    "name": "carriage return inside",
+    "input": "https://github.com/a/b\rfoo",
+    "valid": false
+  },
+  {
+    "name": "tab inside",
+    "input": "https://github.com/a/b\tfoo",
+    "valid": false
+  },
+  {
+    "name": "nul byte",
+    "input": "https://github.com/a/b\u0000",
+    "valid": false
+  },
+  {
+    "name": "encoded newline",
+    "input": "https://github.com/a/b%0Afoo",
+    "valid": false
+  },
+  {
+    "name": "encoded slash",
+    "input": "https://github.com/a%2Fb/c",
+    "valid": false
+  },
+  {
+    "name": "encoded dot",
+    "input": "https://github.com/%2e%2e/b",
+    "valid": false
+  },
+  {
+    "name": "backslash",
+    "input": "https://github.com/a\\b",
+    "valid": false
+  },
+  {
+    "name": "dotdot owner",
+    "input": "https://github.com/../etc",
+    "valid": false
+  },
+  {
+    "name": "dotdot name",
+    "input": "https://github.com/a/..",
+    "valid": false
+  },
+  {
+    "name": "dot name",
+    "input": "https://github.com/a/.",
+    "valid": false
+  },
+  {
+    "name": "dot git only name",
+    "input": "https://github.com/a/.git",
+    "valid": false
+  },
+  {
+    "name": "query string",
+    "input": "https://github.com/a/b?x=1",
+    "valid": false
+  },
+  {
+    "name": "empty query",
+    "input": "https://github.com/a/b?",
+    "valid": false
+  },
+  {
+    "name": "fragment",
+    "input": "https://github.com/a/b#frag",
+    "valid": false
+  },
+  {
+    "name": "cyrillic a in owner",
+    "input": "https://github.com/\u0430dmin/b",
+    "valid": false
+  },
+  {
+    "name": "fullwidth slash",
+    "input": "https://github.com/a\uff0fb",
+    "valid": false
+  },
+  {
+    "name": "unicode name",
+    "input": "https://github.com/a/caf\u00e9",
+    "valid": false
+  },
+  {
+    "name": "underscore in owner",
+    "input": "https://github.com/a_b/c",
+    "valid": false
+  },
+  {
+    "name": "dot in owner",
+    "input": "https://github.com/a.b/c",
+    "valid": false
+  },
+  {
+    "name": "no-break space around",
+    "input": "\u00a0https://github.com/a/b\u00a0",
+    "valid": false
+  },
+  {
+    "name": "control char prefix",
+    "input": "\u001chttps://github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "tab and vertical tab trimmed",
+    "input": "\t\u000bhttps://github.com/a/b\f\r\n",
+    "valid": true,
+    "owner": "a",
+    "repo": "b",
+    "canonical": "https://github.com/a/b"
+  },
+  {
+    "name": ".git before trailing slash order",
+    "input": "https://github.com/a/b/.git",
+    "valid": false
+  },
+  {
+    "name": "double slash after host",
+    "input": "https://github.com//a/b",
+    "valid": false
+  },
+  {
+    "name": "single slash after scheme",
+    "input": "https:/github.com/a/b",
+    "valid": false
+  },
+  {
+    "name": "opaque form",
+    "input": "https:github.com/a/b",
+    "valid": false
+  }
+]
