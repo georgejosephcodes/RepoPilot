@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"repopilot/api/internal/evalmetrics"
+	"repopilot/api/internal/rerank"
 	"repopilot/api/internal/retrieval"
 )
 
@@ -31,6 +32,27 @@ type Settings struct {
 	Repositories []RepoPin          `json:"repositories"`
 	CreatedAt    string             `json:"created_at"`
 	Params       map[string]float64 `json:"params,omitempty"` // variant settings, for example the hybrid weights
+	Rerank       *RerankInfo        `json:"rerank,omitempty"` // hybrid-rerank only
+}
+
+// RerankInfo records what the reranker did in a run. Times are upstream calls, measured when each ranking was
+// made (a ranking served from rerank_cache keeps its original time), so a re-run from the cache reports the same.
+type RerankInfo struct {
+	Name          string         `json:"name"` // prompt version / model
+	Depth         int            `json:"depth"`
+	UpstreamCalls int            `json:"upstream_calls"`
+	CacheHits     int            `json:"cache_hits"`
+	FallbackCount int            `json:"fallback_count"`
+	Fallbacks     map[string]int `json:"fallbacks,omitempty"`
+	MedianMS      int64          `json:"median_ms"`
+	P90MS         int64          `json:"p90_ms"`
+	MaxMS         int64          `json:"max_ms"`
+}
+
+func rerankInfo(name string, depth int, s rerank.Stats) *RerankInfo {
+	return &RerankInfo{Name: name, Depth: depth, UpstreamCalls: s.Calls, CacheHits: s.CacheHits,
+		FallbackCount: s.FallbackCount(), Fallbacks: s.Fallbacks, MedianMS: s.Percentile(50).Milliseconds(),
+		P90MS: s.Percentile(90).Milliseconds(), MaxMS: s.Percentile(100).Milliseconds()}
 }
 
 type QuestionResult struct {

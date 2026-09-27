@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"repopilot/api/internal/evalmetrics"
 	"repopilot/api/internal/repos"
+	"repopilot/api/internal/rerank"
 	"repopilot/api/internal/retrieval"
 )
 
@@ -112,6 +115,9 @@ func TestCheckFlags(t *testing.T) {
 	if checkFlags("keyword-tsrank", "dev", false) != nil || checkFlags("keyword-bm25", "dev", false) != nil || checkFlags("hybrid", "dev", false) != nil {
 		t.Fatal("keyword variants must be accepted")
 	}
+	if checkFlags("hybrid-rerank", "dev", false) != nil {
+		t.Fatal("hybrid-rerank must be accepted")
+	}
 	if checkFlags("reranked", "dev", false) == nil || checkFlags("vector", "train", true) == nil {
 		t.Fatal("unknown variant or split must fail")
 	}
@@ -134,8 +140,14 @@ func TestCheckHybrid(t *testing.T) {
 			t.Errorf("%+v accepted", bad)
 		}
 	}
-	if paramsFor("vector", good) != nil || paramsFor("hybrid", good)["test_penalty"] != 0.5 {
+	if paramsFor("vector", good, 10) != nil || paramsFor("hybrid", good, 10)["test_penalty"] != 0.5 {
 		t.Fatal("params recorded wrongly")
+	}
+	if _, ok := paramsFor("hybrid", good, 10)["rerank_depth"]; ok {
+		t.Fatal("hybrid must not record a rerank depth")
+	}
+	if p := paramsFor("hybrid-rerank", good, 10); p["rerank_depth"] != 10 || p["keyword_weight"] != 0.75 {
+		t.Fatalf("hybrid-rerank params: %v", p)
 	}
 }
 
@@ -254,5 +266,38 @@ func TestReportMatchesGolden(t *testing.T) {
 		if !strings.Contains(got, s) {
 			t.Errorf("report is missing %q", s)
 		}
+	}
+}
+
+func TestPacerSpacesCalls(t *testing.T) {
+	pace := pacer(30 * time.Millisecond)
+	start := time.Now()
+	for i := 0; i < 3; i++ {
+		if err := pace(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if took := time.Since(start); took < 60*time.Millisecond {
+		t.Errorf("3 paced calls took %v, want at least 60ms", took)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := pace(ctx); !errors.Is(err, context.Canceled) {
+		t.Errorf("a cancelled wait must return the context error, got %v", err)
+	}
+}
+
+func TestReportShowsRerankLine(t *testing.T) {
+	run := fixtureRun(t)
+	run.Settings.Variant = "hybrid-rerank"
+	run.Settings.Rerank = rerankInfo("rerank-v1/m", 10, rerank.Stats{Calls: 2, CacheHits: 1,
+		Fallbacks:       map[string]int{"timeout": 1},
+		Durations:       []time.Duration{1500 * time.Millisecond, 10 * time.Second},
+		CachedDurations: []time.Duration{900 * time.Millisecond}})
+	got := renderReport(run, nil)
+	want := "- Rerank: `rerank-v1/m`, depth 10; 2 upstream call(s) this run, 1 from cache; 1 fallback(s) (timeout 1); " +
+		"rerank time (measured when each ranking was made) median 1500 ms, p90 10000 ms, max 10000 ms\n"
+	if !strings.Contains(got, want) {
+		t.Errorf("report lacks the rerank line; got:\n%s", got)
 	}
 }

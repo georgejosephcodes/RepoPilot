@@ -29,6 +29,11 @@ func renderReport(run Run, base *Run) string {
 		}
 		fmt.Fprintf(&b, "- Settings: %s\n", strings.Join(parts, ", "))
 	}
+	if r := s.Rerank; r != nil {
+		fmt.Fprintf(&b, "- Rerank: `%s`, depth %d; %d upstream call(s) this run, %d from cache; %d fallback(s)%s; "+
+			"rerank time (measured when each ranking was made) median %d ms, p90 %d ms, max %d ms\n",
+			r.Name, r.Depth, r.UpstreamCalls, r.CacheHits, r.FallbackCount, fallbackText(r.Fallbacks), r.MedianMS, r.P90MS, r.MaxMS)
+	}
 	frozen := "not frozen"
 	if s.LabelsFrozen {
 		frozen = "frozen"
@@ -205,4 +210,20 @@ func short(s string, n int) string {
 		return s[:n]
 	}
 	return s
+}
+
+func fallbackText(f map[string]int) string {
+	if len(f) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(f))
+	for k := range f {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = fmt.Sprintf("%s %d", k, f[k])
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
