@@ -265,6 +265,153 @@
   }
 
   // Lines of a snippet with their real line numbers: '  65 | code'. Tabs are kept.
+  // ---- syntax highlighting ----
+  // A small tokenizer for the indexed languages. It only labels text: every character of the input comes back, in
+  // order, in some token, and rendering sets it with textContent. Classes: kw (declaration keyword), ctl (control
+  // flow), const, str, com, num, fn, type, dec (decorator); "" is plain text.
+
+  function wordSet(s) {
+    var m = {};
+    s.split(" ").forEach(function (w) {
+      m[w] = true;
+    });
+    return m;
+  }
+
+  var CONTROL = wordSet(
+    "if else elif for while return break continue try except finally raise with yield switch case default goto " +
+      "throw catch do select defer go fallthrough await async match"
+  );
+  var STR_DQ = '"(?:\\\\.|[^"\\\\\\n])*"';
+  var STR_SQ = "'(?:\\\\.|[^'\\\\\\n])*'";
+  var C_COMMENT = "//[^\\n]*|/\\*[\\s\\S]*?\\*/";
+  var DECORATOR = "@[A-Za-z_][\\w.]*";
+  var NUMBER = "\\b(?:0[xX][\\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d+)?[jJnL]?)\\b";
+  var SYNTAX = {
+    python: {
+      comment: "#[^\\n]*",
+      string: "[rRbBuUfF]{0,2}(?:\"\"\"[\\s\\S]*?\"\"\"|'''[\\s\\S]*?'''|" + STR_DQ + "|" + STR_SQ + ")",
+      decorator: DECORATOR,
+      kw: wordSet("and as assert class def del from global import in is lambda nonlocal not or pass"),
+      consts: wordSet("True False None self cls"),
+      types: wordSet("str int float bool bytes list dict set tuple object type Exception BaseException"),
+      fnAfter: wordSet("def"),
+      typeAfter: wordSet("class"),
+    },
+    go: {
+      comment: C_COMMENT,
+      string: "`[^`]*`|" + STR_DQ + "|" + STR_SQ,
+      decorator: null,
+      kw: wordSet("chan const func import interface map package range struct type var"),
+      consts: wordSet("nil true false iota"),
+      types: wordSet(
+        "string int int8 int16 int32 int64 uint uint8 uint16 uint32 uint64 uintptr float32 float64 complex64 " +
+          "complex128 bool byte rune error any"
+      ),
+      fnAfter: wordSet("func"),
+      typeAfter: wordSet("type"),
+    },
+  };
+  SYNTAX.typescript = {
+    comment: C_COMMENT,
+    string: "`(?:\\\\[\\s\\S]|[^`\\\\])*`|" + STR_DQ + "|" + STR_SQ,
+    decorator: DECORATOR,
+    kw: wordSet(
+      "class const function let var new delete typeof instanceof in void import export from as extends " +
+        "implements interface type enum readonly private public protected static declare namespace keyof abstract"
+    ),
+    consts: wordSet("true false null undefined this super NaN Infinity"),
+    types: wordSet("string number boolean any unknown never object bigint symbol"),
+    fnAfter: wordSet("function"),
+    typeAfter: wordSet("class interface type enum extends implements"),
+  };
+  SYNTAX.javascript = SYNTAX.typescript;
+  var PATTERNS = {};
+
+  function patternFor(lang) {
+    if (!PATTERNS[lang]) {
+      var s = SYNTAX[lang];
+      PATTERNS[lang] = new RegExp(
+        "(" + s.comment + ")|(" + s.string + ")|(" + (s.decorator || "(?!)") + ")|(" + NUMBER + ")|([A-Za-z_$][\\w$]*)",
+        "g"
+      );
+    }
+    PATTERNS[lang].lastIndex = 0;
+    return PATTERNS[lang];
+  }
+
+  function wordClass(s, word, text, start, end, prevWord) {
+    if (start > 0 && text.charAt(start - 1) === ".") return /^\s*\(/.test(text.slice(end, end + 40)) ? "fn" : "";
+    if (CONTROL[word]) return "ctl";
+    if (s.kw[word]) return "kw";
+    if (s.consts[word]) return "const";
+    if (s.fnAfter[prevWord]) return "fn";
+    if (s.typeAfter[prevWord]) return "type";
+    if (s.types[word]) return "type";
+    var capital = /^[A-Z][A-Za-z0-9_]*[a-z]/.test(word);
+    if (/^\s*\(/.test(text.slice(end, end + 40))) return capital && s !== SYNTAX.go ? "type" : "fn";
+    return capital ? "type" : "";
+  }
+
+  // tokenize returns [{t: class, s: text}]; joining every s gives back the input. Unknown languages are plain.
+  function tokenize(text, language) {
+    text = String(text == null ? "" : text);
+    var s = SYNTAX[language];
+    if (!s || text === "") return text === "" ? [] : [{ t: "", s: text }];
+    var re = patternFor(language);
+    var out = [];
+    var last = 0;
+    var prevWord = "";
+    var m;
+    while ((m = re.exec(text)) !== null) {
+      if (m[0] === "") {
+        re.lastIndex++;
+        continue;
+      }
+      if (m.index > last) {
+        var gap = text.slice(last, m.index);
+        out.push({ t: "", s: gap });
+        if (/\S/.test(gap)) prevWord = ""; // "def name" counts, "func (c" does not
+      }
+      var t;
+      if (m[1] !== undefined) t = "com";
+      else if (m[2] !== undefined) t = "str";
+      else if (m[3] !== undefined) t = "dec";
+      else if (m[4] !== undefined) t = "num";
+      else t = wordClass(s, m[5], text, m.index, re.lastIndex, prevWord);
+      out.push({ t: t, s: m[0] });
+      prevWord = m[5] !== undefined ? m[5] : "";
+      last = re.lastIndex;
+    }
+    if (last < text.length) out.push({ t: "", s: text.slice(last) });
+    return out;
+  }
+
+  // highlightSnippet splits the tokens of a snippet into lines: [[{t, s}, ...], ...], one list per source line, with
+  // the same line handling as formatSnippet (CRLF, one trailing newline dropped).
+  function highlightSnippet(snippet, language) {
+    var text = String(snippet == null ? "" : snippet).replace(/\r\n?/g, "\n");
+    if (text.slice(-1) === "\n") text = text.slice(0, -1);
+    var lines = [[]];
+    tokenize(text, language).forEach(function (tok) {
+      var parts = tok.s.split("\n");
+      parts.forEach(function (p, i) {
+        if (i > 0) lines.push([]);
+        if (p !== "") lines[lines.length - 1].push({ t: tok.t, s: p });
+      });
+    });
+    return lines;
+  }
+
+  // Line-number gutters matching formatSnippet: "  9 | ".
+  function snippetGutters(startLine, count) {
+    var first = isCount(startLine) ? startLine : 1;
+    var width = String(first + count - 1).length;
+    var out = [];
+    for (var i = 0; i < count; i++) out.push(padLeft(first + i, width) + " | ");
+    return out;
+  }
+
   function formatSnippet(snippet, startLine) {
     var text = String(snippet == null ? "" : snippet).replace(/\r\n?/g, "\n");
     if (text.slice(-1) === "\n") text = text.slice(0, -1);
@@ -428,6 +575,9 @@
     phaseText: phaseText,
     splitAnswer: splitAnswer,
     formatSnippet: formatSnippet,
+    tokenize: tokenize,
+    highlightSnippet: highlightSnippet,
+    snippetGutters: snippetGutters,
     snippetHeader: snippetHeader,
     sourceLines: sourceLines,
     formatStats: formatStats,

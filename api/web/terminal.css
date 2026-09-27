@@ -6,6 +6,16 @@
   --ok: #5fd068;
   --warn: #e5c07b;
   --err: #ff6b6b;
+  --tok-kw: #569cd6;
+  --tok-ctl: #c586c0;
+  --tok-const: #569cd6;
+  --tok-str: #ce9178;
+  --tok-com: #6a9955;
+  --tok-num: #b5cea8;
+  --tok-fn: #dcdcaa;
+  --tok-type: #4ec9b0;
+  --tok-dec: #dcdcaa;
+  --gutter: #6e7681;
   color-scheme: dark light;
 }
 
@@ -18,6 +28,16 @@
     --ok: #1a7f37;
     --warn: #8a6100;
     --err: #c62828;
+    --tok-kw: #0000ff;
+    --tok-ctl: #af00db;
+    --tok-const: #0000ff;
+    --tok-str: #a31515;
+    --tok-com: #008000;
+    --tok-num: #098658;
+    --tok-fn: #795e26;
+    --tok-type: #267f99;
+    --tok-dec: #795e26;
+    --gutter: #237893;
   }
 }
 
@@ -81,6 +101,16 @@ main {
   color: var(--accent);
 }
 
+/* A gap before each command, so one command and its output read as a block. */
+.echo,
+#prompt-form {
+  margin-top: 0.9em;
+}
+
+#log > .echo:first-child {
+  margin-top: 0;
+}
+
 .answer.refusal {
   color: var(--warn);
   font-style: italic;
@@ -97,9 +127,70 @@ main {
   text-decoration: underline;
 }
 
-.cite:focus-visible {
+.fold {
+  font: inherit;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.fold:hover {
+  color: var(--fg);
+}
+
+.snippet-block.folded .snippet-body {
+  display: none;
+}
+
+.cite:focus-visible,
+.fold:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+pre.snippet .ln {
+  color: var(--gutter);
+  user-select: none;
+}
+
+.tok-kw {
+  color: var(--tok-kw);
+}
+
+.tok-ctl {
+  color: var(--tok-ctl);
+}
+
+.tok-const {
+  color: var(--tok-const);
+}
+
+.tok-str {
+  color: var(--tok-str);
+}
+
+.tok-com {
+  color: var(--tok-com);
+  font-style: italic;
+}
+
+.tok-num {
+  color: var(--tok-num);
+}
+
+.tok-fn {
+  color: var(--tok-fn);
+}
+
+.tok-type {
+  color: var(--tok-type);
+}
+
+.tok-dec {
+  color: var(--tok-dec);
 }
 
 pre.snippet {

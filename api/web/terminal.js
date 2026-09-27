@@ -87,6 +87,22 @@
     container.appendChild(el("pre", "snippet", lines.join("\n")));
   }
 
+  // renderCode shows a snippet with line numbers and syntax colours. Every piece of text goes in through
+  // textContent, and class names come only from the tokenizer's fixed set.
+  function renderCode(container, snippet, startLine, language) {
+    var lines = Core.highlightSnippet(snippet, language);
+    var gutters = Core.snippetGutters(startLine, lines.length);
+    var pre = el("pre", "snippet");
+    lines.forEach(function (tokens, i) {
+      if (i > 0) pre.appendChild(document.createTextNode("\n"));
+      pre.appendChild(el("span", "ln", gutters[i]));
+      tokens.forEach(function (tok) {
+        pre.appendChild(tok.t ? el("span", "tok-" + tok.t, tok.s) : document.createTextNode(tok.s));
+      });
+    });
+    container.appendChild(pre);
+  }
+
   function setActive(r) {
     var changed = !state.active || state.active.id !== r.id;
     state.active = { id: r.id, owner: r.owner, name: r.name, status: r.status, commit: r.commit_sha };
@@ -396,10 +412,35 @@
       if (x.n === n) c = x;
     });
     if (!c) return print("error: no citation [" + n + "] in the last answer", "err");
-    print(Core.snippetHeader(c));
-    var box = el("div", "line");
-    renderSnippet(box, Core.formatSnippet(c.snippet, c.start_line));
-    append(box);
+    var block = el("div", "snippet-block");
+    var header = el("div", "line", Core.snippetHeader(c) + "  ");
+    var toggle = el("button", "fold", "[hide]");
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.addEventListener("click", function () {
+      setFolded(block, !block.classList.contains("folded"));
+    });
+    header.appendChild(toggle);
+    block.appendChild(header);
+    var box = el("div", "line snippet-body");
+    renderCode(box, c.snippet, c.start_line, c.language);
+    block.appendChild(box);
+    append(block);
+  }
+
+  function setFolded(block, folded) {
+    block.classList.toggle("folded", folded);
+    var toggle = block.querySelector(".fold");
+    toggle.textContent = folded ? "[show]" : "[hide]";
+    toggle.setAttribute("aria-expanded", folded ? "false" : "true");
+  }
+
+  // Esc folds the most recent snippet that is still open.
+  function foldLastSnippet() {
+    var open = logEl.querySelectorAll(".snippet-block:not(.folded)");
+    if (open.length === 0) return false;
+    setFolded(open[open.length - 1], true);
+    return true;
   }
 
   async function cmdClear() {
@@ -481,6 +522,8 @@
       state.histIdx = Core.historyMove(state.history.length, state.histIdx, ev.key === "ArrowUp" ? -1 : 1);
       input.value = state.histIdx === state.history.length ? state.draft : state.history[state.histIdx];
       input.setSelectionRange(input.value.length, input.value.length);
+    } else if (ev.key === "Escape") {
+      if (foldLastSnippet()) ev.preventDefault();
     } else if (ev.ctrlKey && (ev.key === "l" || ev.key === "L")) {
       ev.preventDefault();
       logEl.textContent = "";
@@ -522,7 +565,7 @@
     print("type 'help' for commands", "dim");
   }
 
-  window.RPUI = { print: print, renderAnswer: renderAnswer, renderSnippet: renderSnippet };
+  window.RPUI = { print: print, renderAnswer: renderAnswer, renderSnippet: renderSnippet, renderCode: renderCode };
 
   if (window.location.hash === "#selftest") {
     var s = document.createElement("script");

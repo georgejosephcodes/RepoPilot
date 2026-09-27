@@ -208,6 +208,43 @@
   eq("error lines for a malformed error", C.errorLines(null), ["error: internal: unknown error"]);
   eq("usage error", C.usageError("show"), "error: usage: show <n>");
 
+  // ---- syntax highlighting ----
+  function toks(text, lang) {
+    return C.tokenize(text, lang)
+      .filter(function (t) {
+        return t.t !== "";
+      })
+      .map(function (t) {
+        return t.t + ":" + t.s;
+      });
+  }
+  var pySrc = '@cached\ndef render(self, n=10):\n    # draw it\n    if not self.hidden:\n        return echo(f"x{n}", 0x1F)\n';
+  eq("tokens give back every character", C.tokenize(pySrc, "python").map(function (t) {
+    return t.s;
+  }).join(""), pySrc);
+  eq("python tokens", toks(pySrc, "python"), [
+    "dec:@cached", "kw:def", "fn:render", "const:self", "num:10", "com:# draw it", "ctl:if", "kw:not", "const:self",
+    "ctl:return", "fn:echo", 'str:f"x{n}"', "num:0x1F",
+  ]);
+  eq("python triple-quoted string spans lines", toks('x = """a\nb"""', "python"), ['str:"""a\nb"""']);
+  eq("go tokens", toks("func (c *Cmd) Run(args []string) error {\n\treturn nil // done\n}", "go"), [
+    "kw:func", "type:Cmd", "fn:Run", "type:string", "type:error", "ctl:return", "const:nil", "com:// done",
+  ]);
+  eq("go raw string", toks("s := `a\\b`", "go"), ["str:`a\\b`"]);
+  eq("js tokens", toks("export class A extends B { get() { return this.x.y(`t${1}`) } }", "typescript"), [
+    "kw:export", "kw:class", "type:A", "kw:extends", "type:B", "fn:get", "ctl:return", "const:this", "fn:y", "str:`t${1}`",
+  ]);
+  eq("property names after a dot are plain", toks("obj.match + obj.if", "javascript"), []);
+  eq("block comment", toks("a /* x\ny */ b", "go"), ["com:/* x\ny */"]);
+  eq("unknown language is plain", C.tokenize("# Title", "markdown"), [{ t: "", s: "# Title" }]);
+  eq("empty snippet has no tokens", C.tokenize("", "python"), []);
+  eq("highlight splits lines", C.highlightSnippet('a = "x"\r\n\nb\n', "python").map(function (l) {
+    return l.map(function (t) {
+      return t.s;
+    }).join("");
+  }), ['a = "x"', "", "b"]);
+  eq("gutters match formatSnippet", C.snippetGutters(99, 2), [" 99 | ", "100 | "]);
+
   // ---- rendering safety ----
   var payloads = ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>", "&lt;b&gt;bold&lt;/b&gt;", "</pre><a href=\"x\">link</a>"];
   payloads.forEach(function (p, i) {
@@ -215,6 +252,18 @@
     UI.renderSnippet(box, C.formatSnippet("x := 1\n" + p + "\ny := 2", 1));
     eq("snippet payload " + i + " creates only the pre", box.querySelectorAll("*").length, 1);
     eq("snippet payload " + i + " appears as text", box.textContent.indexOf(p) !== -1, true);
+
+    ["python", "go", "typescript", "markdown"].forEach(function (lang) {
+      var code = document.createElement("div");
+      UI.renderCode(code, "x = 1\n" + p + '\ns = "' + p + '" # ' + p, 1, lang);
+      var tags = Array.prototype.map.call(code.querySelectorAll("*"), function (e) {
+        return e.tagName + (e.attributes.length === 1 && e.hasAttribute("class") ? "" : "!attrs");
+      });
+      eq("code payload " + i + " " + lang + " creates only the pre and spans", tags.filter(function (t) {
+        return t !== "PRE" && t !== "SPAN";
+      }), []);
+      eq("code payload " + i + " " + lang + " appears as text", code.textContent.indexOf(p) !== -1, true);
+    });
 
     var ans = document.createElement("div");
     UI.renderAnswer(ans, C.splitAnswer("See " + p + " and [1] done", [1]), function () {});
