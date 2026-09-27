@@ -64,6 +64,8 @@ type QuestionResult struct {
 	Score       *evalmetrics.Score `json:"score,omitempty"` // nil for unanswerable questions
 	TopDistance float64            `json:"top_distance"`    // data for a possible refusal threshold later
 	Retrieved   []Retrieved        `json:"retrieved"`
+	// RerankFallback is why this question's list is in base order instead of reranked ("timeout", ...), or empty.
+	RerankFallback string `json:"rerank_fallback,omitempty"`
 }
 
 type Retrieved struct {
@@ -89,7 +91,8 @@ func retrieveAll(ctx context.Context, qs []Question, vecs [][]float32, ids map[s
 	}
 	out := make([]QuestionResult, 0, len(qs))
 	for i, q := range qs {
-		chunks, err := r.Retrieve(ctx, retrieval.Query{RepoID: ids[q.Repo], Text: q.Question, Vec: vecs[i], K: Depth})
+		qctx, trace := retrieval.WithTrace(ctx)
+		chunks, err := r.Retrieve(qctx, retrieval.Query{RepoID: ids[q.Repo], Text: q.Question, Vec: vecs[i], K: Depth})
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", q.ID, err)
 		}
@@ -98,7 +101,8 @@ func retrieveAll(ctx context.Context, qs []Question, vecs [][]float32, ids map[s
 			spans[j] = evalmetrics.Span{File: c.FilePath, Start: c.StartLine, End: c.EndLine}
 		}
 		hits := evalmetrics.Hits(spans, q.Relevant)
-		r := QuestionResult{ID: q.ID, Repo: q.Repo, Kind: q.Kind, Split: q.Split, Question: q.Question, Retrieved: make([]Retrieved, len(chunks))}
+		r := QuestionResult{ID: q.ID, Repo: q.Repo, Kind: q.Kind, Split: q.Split, Question: q.Question, Retrieved: make([]Retrieved, len(chunks)),
+			RerankFallback: trace.Snapshot().RerankFallback}
 		for j, c := range chunks {
 			r.Retrieved[j] = Retrieved{Rank: j + 1, File: c.FilePath, Start: c.StartLine, End: c.EndLine, Symbol: c.Symbol,
 				Kind: c.Kind, ChunkID: c.ID, Distance: c.Distance, Score: c.Score, Grade: hits[j]}

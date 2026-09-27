@@ -301,3 +301,32 @@ func TestReportShowsRerankLine(t *testing.T) {
 		t.Errorf("report lacks the rerank line; got:\n%s", got)
 	}
 }
+
+type fallbackRetriever struct{ inner retrieval.Retriever }
+
+func (f fallbackRetriever) Retrieve(ctx context.Context, q retrieval.Query) ([]retrieval.Chunk, error) {
+	if q.Text == testSet().Questions[0].Question {
+		retrieval.TraceFrom(ctx).Record(func(d *retrieval.TraceData) { d.RerankSource, d.RerankFallback = "upstream", "timeout" })
+	}
+	return f.inner.Retrieve(ctx, q)
+}
+
+func TestFallbackQuestionsAreRecordedAndReported(t *testing.T) {
+	run := fixtureRun(t)
+	s := testSet()
+	vecs := make([][]float32, len(s.Questions))
+	f := &fakeSearcher{results: map[int64][]retrieval.Chunk{}}
+	got, err := retrieveAll(context.Background(), s.Questions, vecs, map[string]int64{}, fallbackRetriever{inner: f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].RerankFallback != "timeout" || got[1].RerankFallback != "" {
+		t.Fatalf("fallbacks %q %q", got[0].RerankFallback, got[1].RerankFallback)
+	}
+	run.Questions[0].RerankFallback = "timeout"
+	run.Settings.Rerank = rerankInfo("rerank-v1/m", 20, rerank.Stats{Calls: 1, Fallbacks: map[string]int{"timeout": 1}})
+	want := "- Rerank fell back to the base order for: `" + run.Questions[0].ID + "` (timeout)\n"
+	if out := renderReport(run, nil); !strings.Contains(out, want) {
+		t.Errorf("report lacks the fallback line; got:\n%s", out)
+	}
+}

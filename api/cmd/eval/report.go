@@ -33,6 +33,15 @@ func renderReport(run Run, base *Run) string {
 		fmt.Fprintf(&b, "- Rerank: `%s`, depth %d; %d upstream call(s) this run, %d from cache; %d fallback(s)%s; "+
 			"rerank time (measured when each ranking was made) median %d ms, p90 %d ms, max %d ms\n",
 			r.Name, r.Depth, r.UpstreamCalls, r.CacheHits, r.FallbackCount, fallbackText(r.Fallbacks), r.MedianMS, r.P90MS, r.MaxMS)
+		var fell []string
+		for _, q := range run.Questions {
+			if q.RerankFallback != "" {
+				fell = append(fell, fmt.Sprintf("`%s` (%s)", q.ID, q.RerankFallback))
+			}
+		}
+		if len(fell) > 0 {
+			fmt.Fprintf(&b, "- Rerank fell back to the base order for: %s\n", strings.Join(fell, ", "))
+		}
 	}
 	frozen := "not frozen"
 	if s.LabelsFrozen {
