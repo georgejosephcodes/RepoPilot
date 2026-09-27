@@ -34,11 +34,6 @@ func renderReport(run Run, base *Run) string {
 			"rerank time (measured when each ranking was made) median %d ms, p90 %d ms, max %d ms\n",
 			r.Name, r.Depth, r.UpstreamCalls, r.CacheHits, r.FallbackCount, fallbackText(r.Fallbacks), r.MedianMS, r.P90MS, r.MaxMS)
 	}
-	if r := s.Rewrite; r != nil {
-		fmt.Fprintf(&b, "- Rewrite: `%s`; %d upstream call(s) this run, %d from cache; %d fallback(s)%s; "+
-			"rewrite time (measured when each rewrite was made) median %d ms, p90 %d ms, max %d ms\n",
-			r.Name, r.UpstreamCalls, r.CacheHits, r.FallbackCount, fallbackText(r.Fallbacks), r.MedianMS, r.P90MS, r.MaxMS)
-	}
 	frozen := "not frozen"
 	if s.LabelsFrozen {
 		frozen = "frozen"

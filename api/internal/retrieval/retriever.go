@@ -113,7 +113,7 @@ func (r *KeywordRetriever) retrieve(ctx context.Context, q Query) ([]Chunk, erro
 	if k < 1 || k > MaxK {
 		return nil, ErrInvalidK
 	}
-	kq := QueryTerms(q.keywordText())
+	kq := QueryTerms(q.Text)
 	if kq.TSQuery == "" {
 		return []Chunk{}, nil
 	}

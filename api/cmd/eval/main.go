@@ -6,12 +6,9 @@
 //	go run ./cmd/eval -split dev -out ../docs/phase2/runs/x.json -report ../docs/phase2/x.md -compare ../docs/phase2/runs/baseline.json
 //	go run ./cmd/eval -split all -final -out ../docs/phase2/runs/baseline.json -report ../docs/phase2/baseline.md
 //	go run ./cmd/eval -variant hybrid-rerank -keyword-weight 0.75 -test-penalty 0.5 -rerank-depth 10 -dry-run
-//	go run ./cmd/eval -variant hybrid-rewrite -keyword-weight 0.75 -test-penalty 0.5 -dry-run
 //
 // hybrid-rerank calls the answer model (Gemini) once per question whose ranking is not in rerank_cache; the dry run
 // counts those calls, -max-llm-requests caps them, and upstream calls are spaced for Gemini's per-minute limit.
-// The -rewrite variants (PHASE2.md step 8) also call Gemini once per question whose rewrite is not in the
-// -rewrite-cache file; those calls count toward the same cap and share the same spacing.
 //
 // Parameters are tuned on the dev split only; the test split (and "all", which contains it) needs -final.
 package main
@@ -36,18 +33,14 @@ import (
 	"repopilot/api/internal/repos"
 	"repopilot/api/internal/rerank"
 	"repopilot/api/internal/retrieval"
-	"repopilot/api/internal/rewrite"
 )
 
-var variants = map[string]bool{"vector": true, "keyword-tsrank": true, "keyword-bm25": true, "hybrid": true, "hybrid-rerank": true,
-	"hybrid-rewrite": true, "hybrid-rerank-rewrite": true}
+var variants = map[string]bool{"vector": true, "keyword-tsrank": true, "keyword-bm25": true, "hybrid": true, "hybrid-rerank": true}
 
 // rerankGap spaces upstream rerank calls: Gemini allows 15 requests per minute (PHASE2.md 6.3).
 const rerankGap = 4200 * time.Millisecond
 
-func usesHybrid(variant string) bool  { return strings.HasPrefix(variant, "hybrid") }
-func usesRerank(variant string) bool  { return strings.HasPrefix(variant, "hybrid-rerank") }
-func usesRewrite(variant string) bool { return strings.HasSuffix(variant, "-rewrite") }
+func usesHybrid(variant string) bool { return variant == "hybrid" || variant == "hybrid-rerank" }
 
 // hybridParams are the tunable hybrid settings (PHASE2.md step 5).
 type hybridParams struct {
@@ -60,7 +53,7 @@ type hybridParams struct {
 // retrieverFor builds the retriever a variant names.
 func retrieverFor(variant string, pool *pgxpool.Pool, model string, dim int, hp hybridParams) retrieval.Retriever {
 	switch variant {
-	case "hybrid", "hybrid-rerank", "hybrid-rewrite", "hybrid-rerank-rewrite": // rewrite and rerank wrappers are added in main
+	case "hybrid", "hybrid-rerank": // the rerank wrapper is added in main
 		return retrieval.HybridRetriever{
 			Vector:  retrieval.VectorRetriever{Searcher: retrieval.NewPgSearcher(pool, model, dim)},
 			Keyword: retrieval.NewKeywordRetriever(pool, retrieval.ScoreBM25),
@@ -77,15 +70,14 @@ func retrieverFor(variant string, pool *pgxpool.Pool, model string, dim int, hp 
 
 func main() {
 	questionsPath := flag.String("questions", "../docs/phase2/eval.json", "evaluation set")
-	variant := flag.String("variant", "vector", "retrieval variant: vector, keyword-tsrank, keyword-bm25, hybrid, hybrid-rerank, hybrid-rewrite or hybrid-rerank-rewrite")
+	variant := flag.String("variant", "vector", "retrieval variant: vector, keyword-tsrank, keyword-bm25, hybrid or hybrid-rerank")
 	var hp hybridParams
 	flag.IntVar(&hp.RRFK, "rrf-k", 60, "hybrid: RRF constant")
 	flag.Float64Var(&hp.KeywordWeight, "keyword-weight", 1, "hybrid: weight of the keyword list, in (0, 1]")
 	flag.Float64Var(&hp.TestPenalty, "test-penalty", 1, "hybrid: multiplier for test files, in (0, 1]; 1 = none")
 	flag.IntVar(&hp.Pool, "pool", 20, "hybrid: chunks taken from each list, 1..50")
 	rerankDepth := flag.Int("rerank-depth", 20, "hybrid-rerank: candidates shown to the reranker, 1..50")
-	maxLLM := flag.Int("max-llm-requests", 50, "rerank and rewrite variants: refuse to run if more Gemini calls than this are needed")
-	rewriteCache := flag.String("rewrite-cache", "../docs/phase2/runs/rewrites-dev.json", "rewrite variants: the JSON file that caches rewrites")
+	maxLLM := flag.Int("max-llm-requests", 50, "hybrid-rerank: refuse to run if more rankings than this are not cached")
 	split := flag.String("split", "dev", "dev, test or all")
 	final := flag.Bool("final", false, "allow the test split (and all); use only for the baseline and the final run")
 	outPath := flag.String("out", "", "write the run as JSON here")
@@ -101,7 +93,7 @@ func main() {
 	if err := checkHybrid(hp); usesHybrid(*variant) && err != nil {
 		fatal(err.Error())
 	}
-	if usesRerank(*variant) && (*rerankDepth < 1 || *rerankDepth > retrieval.MaxK) {
+	if *variant == "hybrid-rerank" && (*rerankDepth < 1 || *rerankDepth > retrieval.MaxK) {
 		fatal(fmt.Sprintf("-rerank-depth must be 1..%d", retrieval.MaxK))
 	}
 	raw, err := os.ReadFile(*questionsPath)
@@ -177,41 +169,13 @@ func main() {
 	}
 
 	retriever := retrieverFor(*variant, pool, upstream.ModelName(), upstream.Dimension(), hp)
-	pace := pacer(rerankGap) // rewrite and rerank calls share Gemini's per-minute limit
-	var lcfg llm.Config
-	if usesRewrite(*variant) || usesRerank(*variant) {
-		if lcfg, err = llm.ConfigFromEnv(os.Getenv); err != nil {
-			fatal(err.Error())
-		}
-	}
-	var rw *rewrite.Retriever
-	rewriteMisses := 0
-	if usesRewrite(*variant) {
-		model, err := llm.NewGemini(rewrite.LLMConfig(lcfg))
-		if err != nil {
-			fatal(err.Error())
-		}
-		store, err := rewrite.OpenFileStore(*rewriteCache)
-		if err != nil {
-			fatal("rewrite cache: " + err.Error())
-		}
-		rw = &rewrite.Retriever{Base: retriever, Rewriter: rewrite.LLMRewriter{LLM: model}, Cache: store, Pace: pace}
-		retriever = rw
-		for _, q := range qs {
-			if rw.Pending(q.Question) {
-				rewriteMisses++
-			}
-		}
-		fmt.Printf("rewrite (%s): %d of %d questions not cached in %s: %d Gemini request(s), about %s with pacing\n",
-			rw.Rewriter.Name(), rewriteMisses, len(qs), *rewriteCache, rewriteMisses,
-			(time.Duration(rewriteMisses) * rerankGap).Round(time.Second))
-		if rewriteMisses > *maxLLM && !*dryRun {
-			fatal(fmt.Sprintf("that is more than -max-llm-requests %d; raise it deliberately if this is expected", *maxLLM))
-		}
-	}
 	var rr *rerank.Retriever
-	if usesRerank(*variant) {
+	if *variant == "hybrid-rerank" {
 		if err := rerank.CheckSchema(ctx, pool); err != nil {
+			fatal(err.Error())
+		}
+		lcfg, err := llm.ConfigFromEnv(os.Getenv)
+		if err != nil {
 			fatal(err.Error())
 		}
 		model, err := llm.NewGemini(rerank.LLMConfig(lcfg))
@@ -219,13 +183,13 @@ func main() {
 			fatal(err.Error())
 		}
 		rr = &rerank.Retriever{Base: retriever, Reranker: rerank.LLMReranker{LLM: model}, Depth: *rerankDepth,
-			Cache: rerank.NewPgStore(pool), Pace: pace, RecordDurations: true}
+			Cache: rerank.NewPgStore(pool), Pace: pacer(rerankGap), RecordDurations: true}
 		retriever = rr
 	}
 
-	if *dryRun && (rr == nil || misses > 0 || rewriteMisses > 0) {
+	if *dryRun && (rr == nil || misses > 0) {
 		if rr != nil {
-			fmt.Println("rerank calls: unknown until every question is embedded and rewritten (the rankings depend on the candidates)")
+			fmt.Println("rerank calls: unknown until every question is embedded (the rankings depend on the candidates)")
 		}
 		fmt.Println("dry run: setup ok, nothing sent")
 		return
@@ -235,14 +199,6 @@ func main() {
 	vecs, err := embedder.EmbedQueries(ctx, texts)
 	if err != nil {
 		fatal("embed questions: " + err.Error())
-	}
-	if rw != nil && rr != nil && rewriteMisses > 0 {
-		// Rewrite first, so the rerank count below sees final candidates and sends nothing itself.
-		for _, q := range qs {
-			if _, err := rw.Terms(ctx, q.Question); err != nil {
-				fatal("rewrite: " + err.Error())
-			}
-		}
 	}
 	if rr != nil {
 		pending, err := countPending(ctx, rr, qs, vecs, ids)
@@ -255,9 +211,8 @@ func main() {
 			fmt.Println("dry run: setup ok, nothing sent")
 			return
 		}
-		if pending > *maxLLM-rewriteMisses {
-			fatal(fmt.Sprintf("with %d rewrite call(s) that is more than -max-llm-requests %d; raise it deliberately if this is expected",
-				rewriteMisses, *maxLLM))
+		if pending > *maxLLM {
+			fatal(fmt.Sprintf("that is more than -max-llm-requests %d; raise it deliberately if this is expected", *maxLLM))
 		}
 	}
 	results, err := retrieveAll(ctx, qs, vecs, ids, retriever)
@@ -278,9 +233,6 @@ func main() {
 	if rr != nil {
 		run.Settings.Rerank = rerankInfo(rr.Reranker.Name(), rr.Depth, rr.Stats())
 	}
-	if rw != nil {
-		run.Settings.Rewrite = rewriteInfo(rw.Rewriter.Name(), rw.Stats())
-	}
 	summarize(&run)
 	if base != nil && base.Settings.LabelsSHA256 != run.Settings.LabelsSHA256 {
 		fmt.Println("warning: the compared run used a different label file; the numbers are not comparable")
@@ -292,10 +244,6 @@ func main() {
 	if ri := run.Settings.Rerank; ri != nil {
 		fmt.Printf("rerank: %d upstream call(s), %d from cache, %d fallback(s) %v, median %d ms, p90 %d ms, max %d ms\n",
 			ri.UpstreamCalls, ri.CacheHits, ri.FallbackCount, ri.Fallbacks, ri.MedianMS, ri.P90MS, ri.MaxMS)
-	}
-	if wi := run.Settings.Rewrite; wi != nil {
-		fmt.Printf("rewrite: %d upstream call(s), %d from cache, %d fallback(s) %v, median %d ms, p90 %d ms, max %d ms\n",
-			wi.UpstreamCalls, wi.CacheHits, wi.FallbackCount, wi.Fallbacks, wi.MedianMS, wi.P90MS, wi.MaxMS)
 	}
 	if *outPath != "" {
 		data, _ := json.MarshalIndent(run, "", " ")
@@ -337,7 +285,7 @@ func paramsFor(variant string, hp hybridParams, rerankDepth int) map[string]floa
 	}
 	p := map[string]float64{"rrf_k": float64(hp.RRFK), "keyword_weight": hp.KeywordWeight,
 		"test_penalty": hp.TestPenalty, "pool": float64(hp.Pool)}
-	if usesRerank(variant) {
+	if variant == "hybrid-rerank" {
 		p["rerank_depth"] = float64(rerankDepth)
 	}
 	return p

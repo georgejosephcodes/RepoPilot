@@ -16,17 +16,6 @@ type Query struct {
 	Vec    []float32
 	K      int
 	Filter Filter
-	// KeywordText, when set, is what the keyword retriever searches for instead of Text (the question plus terms
-	// from query rewriting, PHASE2.md step 8). Vector search and reranking always use Text.
-	KeywordText string
-}
-
-// keywordText is the text keyword search uses.
-func (q Query) keywordText() string {
-	if q.KeywordText != "" {
-		return q.KeywordText
-	}
-	return q.Text
 }
 
 // Filter narrows the chunks a question can retrieve. The zero value matches every chunk.

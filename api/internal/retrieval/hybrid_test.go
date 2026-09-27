@@ -27,13 +27,12 @@ func TestIsTestPath(t *testing.T) {
 }
 
 type fakeRetriever struct {
-	chunks         []Chunk
-	err            error
-	gotK           int
-	gotQ           string
-	gotFilter      Filter
-	gotKeywordText string
-	ctxKey         any
+	chunks    []Chunk
+	err       error
+	gotK      int
+	gotQ      string
+	gotFilter Filter
+	ctxKey    any
 }
 
 type ctxKeyT struct{}
@@ -41,7 +40,6 @@ type ctxKeyT struct{}
 func (f *fakeRetriever) Retrieve(ctx context.Context, q Query) ([]Chunk, error) {
 	k := q.K
 	f.gotK, f.gotQ, f.gotFilter, f.ctxKey = k, q.Text, q.Filter, ctx.Value(ctxKeyT{})
-	f.gotKeywordText = q.KeywordText
 	if f.err != nil {
 		return nil, f.err
 	}
