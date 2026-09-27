@@ -21,7 +21,7 @@ RepoPilot helps a developer go from "I don't understand this repository" to "I k
 7. [Example session](#example-session)
 8. [Roadmap](#roadmap)
 9. [Repository layout](#repository-layout)
-10. [Getting started (planned)](#getting-started-planned)
+10. [Getting started](#getting-started)
 11. [Configuration](#configuration)
 12. [Phase 1 results and known gaps](#phase-1-results-and-known-gaps)
 13. [Limits and known trade-offs](#limits-and-known-trade-offs)
@@ -139,13 +139,16 @@ Full reasoning, alternatives considered, and rejection reasons are in [ARCHITECT
 |---|---|---|
 | API server | **Go + Gin** | Typed, fast, easy concurrency, single static binary. Gin is the most widely used Go HTTP framework, so examples and middleware are plentiful. Handles the latency-sensitive query path. |
 | Indexing worker | **Python** | Best ecosystem for parsing (tree-sitter bindings) and ML/embedding clients. Indexing is batch work where Python speed does not matter; the network calls to the embedding API dominate. |
-| Database | **PostgreSQL + pgvector** | One database for relational data and vectors. Transactions, SQL filters (`WHERE repo_id = ...`), and no extra service to run. HNSW index gives fast approximate nearest-neighbor search at this scale. |
+| Database | **PostgreSQL + pgvector** | One database for relational data and vectors. Transactions, SQL filters (`WHERE repo_id = ...`), and no extra service to run. Search inside one repository is exact (every chunk of that repository is compared), which took 5 to 12 ms in the Phase 1 demo; an approximate HNSW index with a repository filter returned too few rows in testing. |
 | Code parsing | **tree-sitter** | Produces a real syntax tree for many languages with one API. Lets us chunk at function/class boundaries and record exact line numbers. Tolerates broken code. |
-| Embeddings and LLM | **OpenRouter (free models)**: `nvidia/nemotron-3-embed-1b:free` for embeddings; generation model chosen at step 7 | Free, OpenAI-compatible, large embedding batches. Both sit behind interfaces (`Embedder`, `LLM`) so a provider swap touches one adapter file. Limits: 20 requests per minute, 50 per day without purchased credit. Free models may retain requests, so Phase 1 handles public repositories only. |
+| Embeddings | **OpenRouter (free model)**: `nvidia/nemotron-3-embed-1b:free`, 2048 dimensions | Free, OpenAI-compatible, large batches (up to 64 chunks per request). Limits: 20 requests per minute, 50 per day without purchased credit. Free models may retain requests, so Phase 1 handles public repositories only. |
+| Answers | **Gemini**: `gemini-3.5-flash-lite` | Free tier, fast (1 to 2 s for most answers in the demo), and kept to the "cite only numbered blocks" rule in all 15 demo answers. |
 | Job queue | **Postgres table + `FOR UPDATE SKIP LOCKED`** | Already have Postgres. Safe multi-worker claiming with no new infrastructure. Redis Streams arrive in Phase 5 only if load proves the need. |
 | Cache | **Redis (Phase 2+)** | Not in Phase 1. Added when repeated queries and rate limits justify it. |
 | Frontend | **Static terminal-style page (HTML/JS/CSS) served by Go** | Looks and works like a CLI: prompt, commands, scrolling text output. Plain files, no build step. It is a thin client over the REST API, so a future CLI reuses the same commands. React and xterm.js only if the UI grows enough to earn them. |
 | Local infra | **Docker Compose** | One command to start Postgres with pgvector. |
+
+Embeddings and answers sit behind interfaces (`Embedder`, `LLM`), so a provider swap touches one adapter file. Any OpenAI-compatible embeddings API works through the `EMBED_*` settings.
 
 Guiding rule: **every technology must solve a problem we have now.** Redis, React, Prometheus, and RBAC from the original spec are deliberately deferred so Phase 1 stays finishable.
 
@@ -157,38 +160,49 @@ The web UI is a terminal. This is what a session looks like:
 
 ```text
 repopilot ~ (no repo) ▸ help
-commands: help, add, repos, use, status, ask, show, clear
+help [command]         list commands, or show usage for one
+add <github-url>       add a repository and watch it being indexed
+repos                  list repositories
+use <id|owner/name>    select the active repository
+status [id|owner/name] show status, commit, progress and errors
+ask <question>         ask the active repository (the 'ask' word is optional)
+show <n>               show the code behind citation [n] of the last answer
+clear                  clear the screen (Ctrl+L too)
 
-repopilot ~ (no repo) ▸ add https://github.com/example/project
-[queued]     repo 7 example/project
-[cloning]    repo 7
-[parsing]    310 files
-[embedding]  120/310 files
-[ready]      example/project @ abc1234
+repopilot ~ (no repo) ▸ add https://github.com/pallets/itsdangerous
+[queued] repo 203 pallets/itsdangerous
+[cloning]
+[embedding] 0/114 chunks
+[embedding] 64/114 chunks
+[ready] pallets/itsdangerous @ 672971d
 
-repopilot ~ (no repo) ▸ use 7
-using example/project @ abc1234
+repopilot ~ (no repo) ▸ use 203
+using pallets/itsdangerous @ 672971d
 
-repopilot ~ example/project ▸ where is authentication middleware applied?
-Authentication is a Gin middleware [1]. It is attached to the /api group in
-the router setup [2]. Token parsing happens in ParseToken [3].
+repopilot ~ pallets/itsdangerous ▸ Where is the HMAC signature computed?
+The HMAC signature is computed in the `HMACAlgorithm.get_signature` method using
+`hmac.new` and returning `mac.digest()` [1].
 
 sources:
-  [1] internal/auth/middleware.go:18-54   AuthMiddleware
-  [2] internal/api/routes.go:12-40        RegisterRoutes
-  [3] internal/auth/token.go:9-33         ParseToken
+  [1] src/itsdangerous/signer.py:48-64 HMACAlgorithm
 type 'show <n>' to view a snippet
+1.7s · 8 chunks · 2,391 in / 34 out tokens
 
-repopilot ~ example/project ▸ show 1
-[1] internal/auth/middleware.go:18-54 (go, function AuthMiddleware)
-   18 | func AuthMiddleware(cfg Config) gin.HandlerFunc {
-   19 |     return func(c *gin.Context) {
+repopilot ~ pallets/itsdangerous ▸ show 1
+[1] src/itsdangerous/signer.py:48-64 (python, class HMACAlgorithm)
+48 | class HMACAlgorithm(SigningAlgorithm):
+49 |     """Provides signature generation using HMACs."""
    ...
+61 |     def get_signature(self, key: bytes, value: bytes) -> bytes:
+62 |         mac = hmac.new(key, msg=value, digestmod=self.digest_method)
+63 |         return mac.digest()
 ```
+
+The answer, citation and timing above are from the Phase 1 demo run (question `py-1` in [`docs/phase1/raw.json`](docs/phase1/raw.json)). Indexing this repository (19 files, 114 chunks) took about 10 seconds and 2 embedding requests.
 
 Under the hood each command is a call to the REST API (`add` is `POST /api/repositories` plus status polling, an answer is `POST /api/repositories/:id/query`). The full command table and output formats are in [ARCHITECTURE.md](ARCHITECTURE.md#114-command-set-and-terminal-ui).
 
-An unanswerable question ("How does the billing system handle refunds?" in a repo with no billing) must return an answer stating the retrieved code does not cover it, with no fabricated citations.
+An unanswerable question (for example "How does the library connect to a Redis server to cache signatures?" against `itsdangerous`, which has no Redis code) returns `[refused]` and a sentence saying the retrieved code does not cover it, with no citations.
 
 ---
 
@@ -208,61 +222,86 @@ Each phase ends with a verification gate. The next phase does not start until th
 
 ## Repository layout
 
-Planned layout (Phase 1):
-
 ```
-docker-compose.yml        Postgres + pgvector (later: api, worker)
-migrations/001_init.sql   Schema
-api/                      Go API server
-  cmd/server/main.go
-  internal/httpapi/       Gin router and handlers
-  internal/repos/         URL validation, repo CRUD, job enqueue
-  internal/retrieval/     Vector search (SQL)
-  internal/rag/           Prompt builder, citation parser and validator
-  internal/embed/         Embedder interface + Gemini adapter
-  internal/llm/           LLM interface + Gemini adapter
-worker/                   Python indexing worker
-  repopilot_worker/        main, jobs, clone, scan, parse, chunk, embed, db
+docker-compose.yml          Postgres 17 + pgvector; applies migrations/ on first start
+migrations/001_init.sql     Schema
+.env.example                Every setting, with defaults
+api/                        Go API server
+  cmd/server/               The API (serves the web UI too)
+  cmd/search-debug/         Prints raw retrieval results for a question, for debugging
+  internal/httpapi/         Gin router, handlers, rate limits, error shape
+  internal/repos/           URL validation, repository records, job enqueue
+  internal/retrieval/       Repository-scoped vector search (SQL)
+  internal/rag/             Prompt builder, citation parser and validator, error mapping
+  internal/embed/           Embedder interface, OpenAI-compatible adapter (OpenRouter), question cache
+  internal/llm/             LLM interface, Gemini adapter
+  web/                      Terminal-style UI embedded in the binary (index.html, terminal.css, core.js, terminal.js, selftest.js)
+worker/                     Python indexing worker
+  repopilot_worker/         main, jobs, clone, scan, parse, symbols, chunk, embed, store, pipeline
+  scripts/                  run_demo.py, verify_citations.py, provider probes
   tests/
-api/web/                  Terminal-style UI embedded in the API binary (index.html, terminal.css, core.js, terminal.js, selftest.js)
-.env.example
+testdata/                   Fixtures shared by the Go and Python tests (URL cases, embedding contract)
+docs/phase1/                Demo questions, raw answers, mechanical checks, verdicts
 ```
 
 ---
 
-## Getting started (planned)
+## Getting started
 
-Not runnable yet. Target flow once Phase 1 step 1 is done:
+Prerequisites: Docker (with Compose), Go 1.26 or newer, Python 3 (developed and tested on 3.14), `git`, an
+[OpenRouter](https://openrouter.ai) API key for embeddings, and a [Gemini](https://aistudio.google.com) API key for
+answers. Both keys work on free tiers.
 
 ```bash
-cp .env.example .env            # add EMBED_API_KEY (OpenRouter key)
-docker compose up -d            # Postgres + pgvector
-# apply migrations/001_init.sql
-cd api && go run ./cmd/server   # API on :8080
-cd worker && python -m repopilot_worker.main
-open http://localhost:8080
+cp .env.example .env              # set EMBED_API_KEY (OpenRouter) and GEMINI_API_KEY
+docker compose up -d              # Postgres + pgvector on port 5433; creates the schema on first start
+
+# worker setup (once)
+cd worker && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cd ..
 ```
 
-Prerequisites: Docker, Go (version pinned at scaffold time), Python 3.11+, `git`, a Gemini API key.
+Run the API and the worker in two terminals, from the repository root. Each one loads `.env` first:
+
+```bash
+# terminal 1: API and web UI on http://localhost:8080
+cd api && set -a && . ../.env && set +a && go run ./cmd/server
+
+# terminal 2: worker, picks up indexing jobs (add --once to process one job and exit)
+cd worker && set -a && . ../.env && set +a && .venv/bin/python -m repopilot_worker.main
+```
+
+Open http://localhost:8080, type `add https://github.com/<owner>/<repo>`, wait for `[ready]`, then ask a question.
+A repository stays `queued` until the worker runs.
+
+Tests, from the repository root (the database tests create and drop their own throwaway database):
+
+```bash
+(cd api && set -a && . ../.env && set +a && go vet ./... && TEST_DATABASE_URL=$DATABASE_URL go test -count=1 ./...)
+(cd worker && set -a && . ../.env && set +a && TEST_DATABASE_URL=$DATABASE_URL .venv/bin/pytest -q)
+```
 
 ---
 
 ## Configuration
 
-Planned environment variables (final list fixed at scaffold time):
+All settings live in `.env` (copy `.env.example`, which lists every one with its default). The main ones:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string |
-| `EMBED_BASE_URL`, `EMBED_API_KEY`, `EMBED_MODEL` | Embedding provider (OpenRouter by default). Free models may retain requests; Phase 1 indexes public repositories only |
-| `GEMINI_API_KEY` | Optional, only if the Gemini adapter is used |
-| `GEMINI_LLM_MODEL` | Generation model name (verify against current docs) |
-| `GEMINI_EMBED_MODEL` | Embedding model name (verify against current docs) |
-| `EMBED_DIM` | Vector size. 2048 for the Phase 1 model. Must match the schema |
-| `API_ADDR` | API listen address |
-| `CLONE_TIMEOUT_SEC` | Kill a hung `git clone` |
-| `MAX_REPO_MB` / `MAX_FILES` / `MAX_FILE_KB` | Indexing size caps |
-| `RETRIEVAL_TOP_K` | Chunks sent to the LLM per question |
+| `DATABASE_URL` | Postgres connection string (`POSTGRES_*` configure the Compose container) |
+| `API_ADDR` | API listen address, default `:8080` |
+| `EMBED_BASE_URL`, `EMBED_API_KEY`, `EMBED_MODEL` | Embedding provider, any OpenAI-compatible API. Default: OpenRouter, `nvidia/nemotron-3-embed-1b:free` |
+| `EMBED_DIM` | Vector size, `2048` for the default model. Must match the schema |
+| `EMBED_RPM`, `EMBED_BATCH_SIZE`, `EMBED_RESERVE_REQUESTS` | Embedding pacing, batch size, and daily requests the worker leaves unused for questions |
+| `LLM_API_KEY` (or `GEMINI_API_KEY`), `LLM_MODEL`, `LLM_BASE_URL` | Answer model. Default: Gemini `gemini-3.5-flash-lite` |
+| `LLM_TEMPERATURE`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_THINKING_LEVEL`, `LLM_TIMEOUT_SEC` | Answer model behaviour |
+| `RETRIEVAL_TOP_K` | Chunks retrieved per question, default `8` |
+| `CONTEXT_BUDGET_CHARS`, `MAX_QUESTION_CHARS` | Prompt size cap and question length cap |
+| `RATE_LIMIT_PER_MIN`, `QUERY_RATE_LIMIT_PER_MIN` | Per-IP limits on adding repositories and on questions |
+| `CLONE_TIMEOUT_SEC`, `MAX_REPO_MB`, `MAX_FILES`, `MAX_FILE_KB` | Indexing safety caps |
+| `CHUNK_MAX_LINES`, `CHUNK_OVERLAP_LINES`, `CHUNK_MIN_GAP_LINES` | Chunking rules |
+
+Without both keys the API still starts, but question answering is disabled and says so in its log.
 
 ---
 
@@ -294,7 +333,7 @@ fail, not only cases expected to pass.
 
 ## Limits and known trade-offs
 
-- **Free-tier quota.** Embeddings and generation share Gemini free-tier limits. Phase 1 mitigates with batching, backoff, and small demo repos. Large repos may be slow or partially indexed until quota allows.
+- **Free-tier quota.** Embeddings use OpenRouter's free tier: 50 requests per day and 20 per minute. Each question costs 1 request and each new repository about 1 per 64 chunks, so a large repository can use most of a day's budget. Before embedding, the worker checks the remaining budget and fails the job with a clear message when it would not fit; vectors already paid for are cached, so a retry after the daily reset does not pay for them again. Answers use Gemini's free tier, which has a separate, larger limit. Batching, pacing, and backoff keep usage inside both.
 - **Pure vector search misses exact identifiers.** Searching for `ErrConfigMissing` may miss it. Phase 2 adds keyword search to fix this. Phase 1 accepts the gap and the eval set will quantify it.
 - **Chunk boundaries matter.** A function split across chunks, or a chunk missing its callers, can produce a partial answer. Large-symbol splitting with overlap reduces but does not remove this.
 - **Answers are model output.** Citation validation ensures cited chunks were really retrieved. It does not prove the model interpreted them correctly. That is why snippets and line ranges are returned.
@@ -317,11 +356,11 @@ They cut functions in half and lose the symbol name and line range. Syntax-aware
 **Why cite `[n]` markers instead of asking the model for file paths?**
 Models invent paths. Numbered markers map to chunks the server actually retrieved, so the server can verify every citation mechanically.
 
-**Can I swap Gemini for another provider?**
-Yes. Implement the `Embedder` and/or `LLM` interface in one file. One rule: never mix embedding models within a repository. The model name is stored per chunk and checked at query time.
+**Can I swap OpenRouter or Gemini for another provider?**
+Yes. Any OpenAI-compatible embeddings API works by changing the `EMBED_*` settings. Otherwise, implement the `Embedder` and/or `LLM` interface in one file. One rule: never mix embedding models within a repository. The model name is stored per chunk and checked at query time.
 
 **Why does the web UI look like a terminal?**
 The users are developers and a CLI is planned. Building the interaction as commands and text output now means the web UI and the later CLI share one command set, one output format, and one API. It also keeps Phase 1 simple: no frontend framework or build step.
 
 **When does the CLI arrive?**
-After Phase 1 is verified. It will be a standalone client of the same REST API with the same commands. Its config, auth, and exit-code details are decided then.
+It is not scheduled yet. It will be a standalone client of the same REST API with the same commands. Its config, auth, and exit-code details are decided then.
