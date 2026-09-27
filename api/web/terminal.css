@@ -1,27 +1,23 @@
 :root {
-  --bg: #0f1419;
-  --fg: #d6dbe1;
-  --dim: #8a94a0;
-  --accent: #7cc4ff;
-  --ok: #7fd48a;
-  --warn: #e6c56a;
-  --err: #ff8a80;
-  --panel: #171d24;
-  --border: #2b3440;
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --dim: #8b949e;
+  --accent: #6cb6ff;
+  --ok: #5fd068;
+  --warn: #e5c07b;
+  --err: #ff6b6b;
   color-scheme: dark light;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #fbfbf9;
-    --fg: #1d232a;
-    --dim: #5d6773;
-    --accent: #0b5cad;
-    --ok: #1a6b2c;
-    --warn: #7a5a00;
-    --err: #b3261e;
-    --panel: #f0f0ec;
-    --border: #cfd3d8;
+    --bg: #ffffff;
+    --fg: #1d1d1f;
+    --dim: #6e6e73;
+    --accent: #0a58ca;
+    --ok: #1a7f37;
+    --warn: #8a6100;
+    --err: #c62828;
   }
 }
 
@@ -35,16 +31,15 @@ html {
 
 body {
   margin: 0;
+  min-height: 100vh;
   background: var(--bg);
   color: var(--fg);
-  font: 15px/1.5 ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font: 13px/1.35 "SF Mono", Menlo, Monaco, ui-monospace, "Liberation Mono", monospace;
   tab-size: 4;
 }
 
 main {
-  max-width: 100ch;
-  margin: 0 auto;
-  padding: 12px 16px 0;
+  padding: 4px 6px;
 }
 
 .sr-only {
@@ -86,13 +81,8 @@ main {
   color: var(--accent);
 }
 
-.answer {
-  margin: 4px 0;
-}
-
 .answer.refusal {
-  border-left: 3px solid var(--warn);
-  padding-left: 10px;
+  color: var(--warn);
   font-style: italic;
 }
 
@@ -107,18 +97,13 @@ main {
   text-decoration: underline;
 }
 
-.cite:focus-visible,
-#cmd:focus-visible {
+.cite:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 pre.snippet {
-  margin: 4px 0;
-  padding: 8px 10px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  margin: 0;
   overflow-x: auto;
   max-width: 100%;
   font: inherit;
@@ -127,13 +112,10 @@ pre.snippet {
 }
 
 #prompt-form {
-  position: sticky;
-  bottom: 0;
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding: 8px 0 12px;
-  background: var(--bg);
+  gap: 1ch;
+  padding-bottom: 4px;
 }
 
 #prompt {
@@ -151,13 +133,15 @@ pre.snippet {
   color: var(--fg);
   background: transparent;
   border: 0;
+  outline: 0;
   padding: 0;
   caret-color: var(--fg);
+  caret-shape: block;
 }
 
 @media (max-width: 520px) {
   body {
-    font-size: 14px;
+    font-size: 12px;
   }
 
   #prompt {

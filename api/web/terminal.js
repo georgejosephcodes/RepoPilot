@@ -92,6 +92,7 @@
     state.active = { id: r.id, owner: r.owner, name: r.name, status: r.status, commit: r.commit_sha };
     if (changed) state.citations = [];
     promptEl.textContent = promptText();
+    document.title = "RepoPilot — " + Core.repoLabel(state.active);
   }
 
   // ---- API ----
