@@ -1,0 +1,1761 @@
+{
+ "version": 1,
+ "labels_frozen": false,
+ "description": "Phase 2 retrieval evaluation set. Relevance labels are line spans read from the real source at the pinned commits, written before any retrieval run. grade 2: the span answers the question; grade 1: useful context. A retrieved chunk hits a span when the file is equal and the line ranges overlap. Unanswerable questions have no spans; the only correct answer is a refusal.",
+ "repositories": [
+  {
+   "name": "golang/example",
+   "commit": "7f05d217867b2af52b0a28c6d1c91df97e1b5b39"
+  },
+  {
+   "name": "sindresorhus/is",
+   "commit": "e9c026c611c1160eaad50da00be4e676b626018f"
+  },
+  {
+   "name": "pallets/itsdangerous",
+   "commit": "672971d66a2ef9f85151e53283113f33d642dabd"
+  },
+  {
+   "name": "pallets/click",
+   "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309"
+  }
+ ],
+ "questions": [
+  {
+   "id": "go-1",
+   "repo": "golang/example",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where is the function that reverses a string implemented?",
+   "relevant": [
+    {
+     "file": "hello/reverse/reverse.go",
+     "start_line": 8,
+     "end_line": 15,
+     "grade": 2,
+     "symbol": "String"
+    }
+   ],
+   "expected_answer": "reverse.String converts the string to runes and swaps them from both ends.",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "go-2",
+   "repo": "golang/example",
+   "kind": "location",
+   "split": "test",
+   "question": "Where is the Weaviate client initialized?",
+   "relevant": [
+    {
+     "file": "ragserver/ragserver/weaviate.go",
+     "start_line": 19,
+     "end_line": 46,
+     "grade": 2,
+     "symbol": "initWeaviate"
+    },
+    {
+     "file": "ragserver/ragserver/main.go",
+     "start_line": 29,
+     "end_line": 61,
+     "grade": 1,
+     "symbol": "main"
+    }
+   ],
+   "expected_answer": "initWeaviate creates a client for localhost with the port from WVPORT (default 9035) and creates the Document class if missing; main calls it.",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "go-3",
+   "repo": "golang/example",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does the ragserver query handler answer a question?",
+   "relevant": [
+    {
+     "file": "ragserver/ragserver/main.go",
+     "start_line": 124,
+     "end_line": 192,
+     "grade": 2,
+     "symbol": "ragServer.queryHandler"
+    },
+    {
+     "file": "ragserver/ragserver-genkit/main.go",
+     "start_line": 116,
+     "end_line": 162,
+     "grade": 2,
+     "symbol": "ragServer.queryHandler"
+    },
+    {
+     "file": "ragserver/ragserver-langchaingo/main.go",
+     "start_line": 105,
+     "end_line": 139,
+     "grade": 2,
+     "symbol": "ragServer.queryHandler"
+    }
+   ],
+   "expected_answer": "Parse the JSON request, embed the query, search Weaviate for similar documents, build a prompt from ragTemplateStr, call the model, render the response as JSON.",
+   "why_hard": "Three variants of the same server; any one of the three handlers answers the question, so span coverage below 1 is expected.",
+   "origin": "phase1"
+  },
+  {
+   "id": "go-4",
+   "repo": "golang/example",
+   "kind": "unanswerable",
+   "split": "dev",
+   "question": "How does the server authenticate users with OAuth tokens?",
+   "relevant": [],
+   "expected_answer": "Refusal: there is no authentication code.",
+   "why_hard": "grep -i oauth over .go and .md finds nothing.",
+   "origin": "phase1"
+  },
+  {
+   "id": "go-5",
+   "repo": "golang/example",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What does PrintDefsUses do?",
+   "relevant": [
+    {
+     "file": "gotypes/defsuses/main.go",
+     "start_line": 22,
+     "end_line": 43,
+     "grade": 2,
+     "symbol": "PrintDefsUses"
+    }
+   ],
+   "expected_answer": "Type-checks the file and prints every identifier in Defs and Uses with its object.",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "go-6",
+   "repo": "golang/example",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where does the HTTP server start listening?",
+   "relevant": [
+    {
+     "file": "helloserver/server.go",
+     "start_line": 35,
+     "end_line": 54,
+     "grade": 2,
+     "symbol": "main"
+    },
+    {
+     "file": "outyet/main.go",
+     "start_line": 29,
+     "end_line": 35,
+     "grade": 2,
+     "symbol": "main"
+    },
+    {
+     "file": "template/main.go",
+     "start_line": 20,
+     "end_line": 24,
+     "grade": 2,
+     "symbol": "main"
+    },
+    {
+     "file": "ragserver/ragserver/main.go",
+     "start_line": 29,
+     "end_line": 61,
+     "grade": 2,
+     "symbol": "main"
+    },
+    {
+     "file": "ragserver/ragserver-genkit/main.go",
+     "start_line": 28,
+     "end_line": 78,
+     "grade": 2,
+     "symbol": "main"
+    },
+    {
+     "file": "ragserver/ragserver-langchaingo/main.go",
+     "start_line": 30,
+     "end_line": 69,
+     "grade": 2,
+     "symbol": "main"
+    }
+   ],
+   "expected_answer": "Each server's main calls http.ListenAndServe: helloserver, outyet, template and the three ragserver variants.",
+   "why_hard": "Known Phase 1 case: six valid sites; Phase 1 step 6 missed template/main.go and ranked the ragserver README first.",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-7",
+   "repo": "golang/example",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does the outyet server check whether a Go release exists?",
+   "relevant": [
+    {
+     "file": "outyet/main.go",
+     "start_line": 65,
+     "end_line": 75,
+     "grade": 2,
+     "symbol": "Server.poll"
+    },
+    {
+     "file": "outyet/main.go",
+     "start_line": 83,
+     "end_line": 95,
+     "grade": 2,
+     "symbol": "isTagged"
+    },
+    {
+     "file": "outyet/main.go",
+     "start_line": 58,
+     "end_line": 63,
+     "grade": 1,
+     "symbol": "NewServer"
+    }
+   ],
+   "expected_answer": "NewServer starts poll in a goroutine; poll calls isTagged, which sends an HTTP HEAD to the change URL and reports a 200, sleeping between tries; then it sets yes to true.",
+   "why_hard": "Known Phase 1 case: Server.poll ranked 6th and isTagged 7th behind a license window and other outyet chunks.",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-8",
+   "repo": "golang/example",
+   "kind": "flow",
+   "split": "test",
+   "question": "How does the hello command decide whether to print the greeting reversed?",
+   "relevant": [
+    {
+     "file": "hello/hello.go",
+     "start_line": 44,
+     "end_line": 72,
+     "grade": 2,
+     "symbol": "main"
+    },
+    {
+     "file": "hello/hello.go",
+     "start_line": 39,
+     "end_line": 42,
+     "grade": 1
+    },
+    {
+     "file": "hello/reverse/reverse.go",
+     "start_line": 8,
+     "end_line": 15,
+     "grade": 1,
+     "symbol": "String"
+    }
+   ],
+   "expected_answer": "main checks the -r flag (reverseFlag); if set it prints reverse.String of the greeting and of the name.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-9",
+   "repo": "golang/example",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What does CheckNilFuncComparison report?",
+   "relevant": [
+    {
+     "file": "gotypes/nilfunc/main.go",
+     "start_line": 53,
+     "end_line": 92,
+     "grade": 2,
+     "symbol": "CheckNilFuncComparison"
+    }
+   ],
+   "expected_answer": "Comparisons of a function (not a function call) against nil with == or !=, for example if x.Method == nil.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-10",
+   "repo": "golang/example",
+   "kind": "identifier",
+   "split": "test",
+   "question": "What is appendUnopenedGroups used for?",
+   "relevant": [
+    {
+     "file": "slog-handler-guide/indenthandler3/indent_handler.go",
+     "start_line": 86,
+     "end_line": 92,
+     "grade": 2,
+     "symbol": "IndentHandler.appendUnopenedGroups"
+    },
+    {
+     "file": "slog-handler-guide/indenthandler4/indent_handler.go",
+     "start_line": 87,
+     "end_line": 93,
+     "grade": 2,
+     "symbol": "IndentHandler.appendUnopenedGroups"
+    }
+   ],
+   "expected_answer": "It writes the names of groups added by WithGroup but not yet written, one indented line each, increasing the indent level.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-11",
+   "repo": "golang/example",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What does PrintSkeleton print?",
+   "relevant": [
+    {
+     "file": "gotypes/skeleton/main.go",
+     "start_line": 28,
+     "end_line": 59,
+     "grade": 2,
+     "symbol": "PrintSkeleton"
+    }
+   ],
+   "expected_answer": "A skeleton implementation (method stubs) of an interface type for a named concrete type.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-12",
+   "repo": "golang/example",
+   "kind": "literal",
+   "split": "dev",
+   "question": "Where is the error 'no build information available' returned?",
+   "relevant": [
+    {
+     "file": "helloserver/server.go",
+     "start_line": 56,
+     "end_line": 65,
+     "grade": 2,
+     "symbol": "version"
+    }
+   ],
+   "expected_answer": "The helloserver version handler returns HTTP 500 with that text when debug.ReadBuildInfo fails.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-13",
+   "repo": "golang/example",
+   "kind": "literal",
+   "split": "test",
+   "question": "What happens to a line that begins with %toc in the weave tool?",
+   "relevant": [
+    {
+     "file": "internal/cmd/weave/weave.go",
+     "start_line": 10,
+     "end_line": 12,
+     "grade": 2
+    },
+    {
+     "file": "internal/cmd/weave/weave.go",
+     "start_line": 42,
+     "end_line": 161,
+     "grade": 1,
+     "symbol": "main"
+    }
+   ],
+   "expected_answer": "It is replaced with a table of contents linking the top two levels of headers below it.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-14",
+   "repo": "golang/example",
+   "kind": "conceptual",
+   "split": "dev",
+   "question": "What are the differences between the ragserver variants?",
+   "relevant": [
+    {
+     "file": "ragserver/README.md",
+     "start_line": 30,
+     "end_line": 37,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "ragserver uses the Google AI SDK and Weaviate client directly; ragserver-langchaingo uses LangChain for Go; ragserver-genkit uses Genkit Go.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-15",
+   "repo": "golang/example",
+   "kind": "conceptual",
+   "split": "test",
+   "question": "Why does a slog handler need a mutex when it writes output?",
+   "relevant": [
+    {
+     "file": "slog-handler-guide/guide.md",
+     "start_line": 341,
+     "end_line": 365,
+     "grade": 2
+    },
+    {
+     "file": "slog-handler-guide/guide.md",
+     "start_line": 539,
+     "end_line": 570,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "Handlers sharing a writer (for example after WithGroup copies) must share one mutex so concurrent Handle calls do not interleave output.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-16",
+   "repo": "golang/example",
+   "kind": "trap",
+   "split": "dev",
+   "question": "In the third version of the indent handler, how does WithGroup avoid writing the group name right away?",
+   "relevant": [
+    {
+     "file": "slog-handler-guide/indenthandler3/indent_handler.go",
+     "start_line": 50,
+     "end_line": 61,
+     "grade": 2,
+     "symbol": "IndentHandler.WithGroup"
+    },
+    {
+     "file": "slog-handler-guide/indenthandler3/indent_handler.go",
+     "start_line": 86,
+     "end_line": 92,
+     "grade": 1,
+     "symbol": "IndentHandler.appendUnopenedGroups"
+    }
+   ],
+   "expected_answer": "It copies the handler and appends the name to unopenedGroups; the name is written later by appendUnopenedGroups.",
+   "why_hard": "Four near-identical indent_handler.go files; WithGroup in indenthandler1 and 2 works differently and v4 is a copy of v3.",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-17",
+   "repo": "golang/example",
+   "kind": "trap",
+   "split": "test",
+   "question": "Where does the indent handler reuse byte buffers to reduce allocations?",
+   "relevant": [
+    {
+     "file": "slog-handler-guide/indenthandler4/indent_handler.go",
+     "start_line": 187,
+     "end_line": 193,
+     "grade": 2
+    },
+    {
+     "file": "slog-handler-guide/indenthandler4/indent_handler.go",
+     "start_line": 195,
+     "end_line": 197,
+     "grade": 2,
+     "symbol": "allocBuf"
+    },
+    {
+     "file": "slog-handler-guide/indenthandler4/indent_handler.go",
+     "start_line": 199,
+     "end_line": 206,
+     "grade": 2,
+     "symbol": "freeBuf"
+    },
+    {
+     "file": "slog-handler-guide/guide.md",
+     "start_line": 624,
+     "end_line": 724,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "indenthandler4 keeps a sync.Pool of 1 KB buffers (bufPool); allocBuf takes one and freeBuf returns buffers up to 16 KB.",
+   "why_hard": "Only indenthandler4 pools buffers; three near-identical copies of Handle do not.",
+   "origin": "phase2"
+  },
+  {
+   "id": "go-18",
+   "repo": "golang/example",
+   "kind": "unanswerable",
+   "split": "test",
+   "question": "How are database migrations applied when the server starts?",
+   "relevant": [],
+   "expected_answer": "Refusal: there are no database migrations.",
+   "why_hard": "grep -i migrat over .go and .md finds nothing.",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-1",
+   "repo": "sindresorhus/is",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where is the function that detects the type name of a value?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 195,
+     "end_line": 259,
+     "grade": 2,
+     "symbol": "detect"
+    },
+    {
+     "file": "readme.md",
+     "start_line": 80,
+     "end_line": 102,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "detect(value) returns the type name; it is also exported as is(value).",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "ts-2",
+   "repo": "sindresorhus/is",
+   "kind": "location",
+   "split": "test",
+   "question": "Where is the check that a string is empty or contains only whitespace?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 586,
+     "end_line": 588,
+     "grade": 2,
+     "symbol": "isEmptyStringOrWhitespace"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 582,
+     "end_line": 584,
+     "grade": 1,
+     "symbol": "isEmptyString"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 983,
+     "end_line": 985,
+     "grade": 1,
+     "symbol": "isWhitespaceString"
+    }
+   ],
+   "expected_answer": "isEmptyStringOrWhitespace returns isEmptyString(value) || isWhitespaceString(value).",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "ts-3",
+   "repo": "sindresorhus/is",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does isAll combine several predicates into one?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 426,
+     "end_line": 440,
+     "grade": 2,
+     "symbol": "isAll"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 393,
+     "end_line": 408,
+     "grade": 1,
+     "symbol": "validatePredicateArray"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 989,
+     "end_line": 997,
+     "grade": 1,
+     "symbol": "predicateOnArray"
+    }
+   ],
+   "expected_answer": "With an array of predicates and no values, isAll validates them and returns value => predicateArray.every(p => p(value)); with values it applies that with Array.prototype.every.",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "ts-4",
+   "repo": "sindresorhus/is",
+   "kind": "unanswerable",
+   "split": "dev",
+   "question": "How does the library connect to a database?",
+   "relevant": [],
+   "expected_answer": "Refusal: the library does no I/O.",
+   "why_hard": "grep -i 'database|sql' over source and readme finds nothing.",
+   "origin": "phase1"
+  },
+  {
+   "id": "ts-5",
+   "repo": "sindresorhus/is",
+   "kind": "identifier",
+   "split": "test",
+   "question": "What does isAbsoluteModule2 do?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 387,
+     "end_line": 389,
+     "grade": 2,
+     "symbol": "isAbsoluteModule2"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 615,
+     "end_line": 617,
+     "grade": 1,
+     "symbol": "isEvenInteger"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 823,
+     "end_line": 825,
+     "grade": 1,
+     "symbol": "isOddInteger"
+    }
+   ],
+   "expected_answer": "Returns a predicate that is true for integers whose absolute value modulo 2 equals the given remainder (0 or 1).",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "ts-6",
+   "repo": "sindresorhus/is",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where does the library decide whether a value is a DOM element?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 666,
+     "end_line": 672,
+     "grade": 2,
+     "symbol": "isHtmlElement"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 181,
+     "end_line": 193,
+     "grade": 1,
+     "symbol": "getObjectType"
+    }
+   ],
+   "expected_answer": "isHtmlElement checks an object with nodeType ELEMENT, a string nodeName, not a plain object, and a list of DOM properties.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-7",
+   "repo": "sindresorhus/is",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where are the individual checks attached to the main is function?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 282,
+     "end_line": 385,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "const is = Object.assign(detect, {all: isAll, any: isAny, array: isArray, ...}).",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-8",
+   "repo": "sindresorhus/is",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does assertAll build its error message when a value fails?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 1404,
+     "end_line": 1414,
+     "grade": 2,
+     "symbol": "assertAll"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 1022,
+     "end_line": 1026,
+     "grade": 2,
+     "symbol": "typeErrorMessageMultipleValues"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 1014,
+     "end_line": 1020,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "It picks the expected type from methodTypeMap (or 'predicate returns truthy for all values') and typeErrorMessageMultipleValues joins the unique expected types with 'or' and the received types with 'and' via Intl.ListFormat.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-9",
+   "repo": "sindresorhus/is",
+   "kind": "flow",
+   "split": "test",
+   "question": "How does a negative assertion such as assert.not.string report a failure?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 1167,
+     "end_line": 1174,
+     "grade": 2,
+     "symbol": "createAssertNot"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 1003,
+     "end_line": 1005,
+     "grade": 2,
+     "symbol": "typeErrorMessageNot"
+    }
+   ],
+   "expected_answer": "createAssertNot returns a function that throws a TypeError with the custom message or 'Expected value which is not `...`, received value of type `...`' when the predicate matches.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-10",
+   "repo": "sindresorhus/is",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "How does isPlainObject tell a plain object apart from other objects?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 831,
+     "end_line": 841,
+     "grade": 2,
+     "symbol": "isPlainObject"
+    }
+   ],
+   "expected_answer": "Its prototype must be null, Object.prototype, or have a null prototype, and it must have no Symbol.toStringTag or Symbol.iterator.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-11",
+   "repo": "sindresorhus/is",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What can be passed as the range argument of isInRange?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 679,
+     "end_line": 693,
+     "grade": 2,
+     "symbol": "isInRange"
+    },
+    {
+     "file": "readme.md",
+     "start_line": 505,
+     "end_line": 521,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "A number (range from 0 to that number) or a two-number array; NaN bounds or anything else throw 'Invalid range'.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-12",
+   "repo": "sindresorhus/is",
+   "kind": "literal",
+   "split": "dev",
+   "question": "Where is the error 'Please don't use object wrappers for primitive types' thrown?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 253,
+     "end_line": 256,
+     "grade": 2
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 276,
+     "end_line": 280,
+     "grade": 1,
+     "symbol": "isBoxedPrimitiveObject"
+    }
+   ],
+   "expected_answer": "In detect, when the value is a boxed String, Boolean or Number object.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-13",
+   "repo": "sindresorhus/is",
+   "kind": "literal",
+   "split": "test",
+   "question": "Which functions throw 'Invalid number of values'?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 989,
+     "end_line": 997,
+     "grade": 2,
+     "symbol": "predicateOnArray"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 1404,
+     "end_line": 1414,
+     "grade": 2,
+     "symbol": "assertAll"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 1416,
+     "end_line": 1426,
+     "grade": 2,
+     "symbol": "assertAny"
+    }
+   ],
+   "expected_answer": "predicateOnArray, assertAll and assertAny, when no values are given.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-14",
+   "repo": "sindresorhus/is",
+   "kind": "conceptual",
+   "split": "dev",
+   "question": "Why use this package instead of instanceof?",
+   "relevant": [
+    {
+     "file": "readme.md",
+     "start_line": 903,
+     "end_line": 905,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "instanceof does not work for all types and not across realms such as iframes, windows, workers or the vm module.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-15",
+   "repo": "sindresorhus/is",
+   "kind": "conceptual",
+   "split": "test",
+   "question": "What is the difference between the type guards and the type assertions?",
+   "relevant": [
+    {
+     "file": "readme.md",
+     "start_line": 734,
+     "end_line": 760,
+     "grade": 2
+    },
+    {
+     "file": "readme.md",
+     "start_line": 762,
+     "end_line": 787,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "Type guards return booleans that narrow types in if statements; assertions throw a TypeError for unexpected types.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-16",
+   "repo": "sindresorhus/is",
+   "kind": "trap",
+   "split": "dev",
+   "question": "Which check tells whether a string is a valid URL?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 946,
+     "end_line": 957,
+     "grade": 2,
+     "symbol": "isUrlString"
+    },
+    {
+     "file": "readme.md",
+     "start_line": 378,
+     "end_line": 392,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "isUrlString returns true when new URL(value) does not throw.",
+   "why_hard": "isUrlInstance and isUrlSearchParams share the words; only isUrlString checks a string.",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-17",
+   "repo": "sindresorhus/is",
+   "kind": "trap",
+   "split": "test",
+   "question": "How does oddInteger decide that a number is odd?",
+   "relevant": [
+    {
+     "file": "source/index.ts",
+     "start_line": 823,
+     "end_line": 825,
+     "grade": 2,
+     "symbol": "isOddInteger"
+    },
+    {
+     "file": "source/index.ts",
+     "start_line": 387,
+     "end_line": 389,
+     "grade": 2,
+     "symbol": "isAbsoluteModule2"
+    }
+   ],
+   "expected_answer": "isOddInteger calls isAbsoluteModule2(1): an integer whose absolute value modulo 2 is 1.",
+   "why_hard": "isEvenInteger is identical except for the remainder, and the helper's name does not mention odd or even.",
+   "origin": "phase2"
+  },
+  {
+   "id": "ts-18",
+   "repo": "sindresorhus/is",
+   "kind": "unanswerable",
+   "split": "test",
+   "question": "How are the results of earlier type checks cached?",
+   "relevant": [],
+   "expected_answer": "Refusal: nothing is cached.",
+   "why_hard": "grep -i 'cache|memo' over source and readme finds nothing.",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-1",
+   "repo": "pallets/itsdangerous",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where is the HMAC signature computed?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 62,
+     "end_line": 64,
+     "grade": 2,
+     "symbol": "HMACAlgorithm.get_signature"
+    },
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 215,
+     "end_line": 220,
+     "grade": 1,
+     "symbol": "Signer.get_signature"
+    }
+   ],
+   "expected_answer": "HMACAlgorithm.get_signature calls hmac.new(key, msg=value, digestmod=self.digest_method) and returns mac.digest().",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "py-2",
+   "repo": "pallets/itsdangerous",
+   "kind": "location",
+   "split": "test",
+   "question": "Where does the code convert a timestamp into a datetime?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/timed.py",
+     "start_line": 35,
+     "end_line": 43,
+     "grade": 2,
+     "symbol": "TimestampSigner.timestamp_to_datetime"
+    }
+   ],
+   "expected_answer": "TimestampSigner.timestamp_to_datetime returns datetime.fromtimestamp(ts, tz=timezone.utc).",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "py-3",
+   "repo": "pallets/itsdangerous",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does TimestampSigner check that a signed value has expired?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/timed.py",
+     "start_line": 72,
+     "end_line": 158,
+     "grade": 2,
+     "symbol": "TimestampSigner.unsign"
+    },
+    {
+     "file": "src/itsdangerous/exc.py",
+     "start_line": 60,
+     "end_line": 63,
+     "grade": 1,
+     "symbol": "SignatureExpired"
+    }
+   ],
+   "expected_answer": "unsign decodes the timestamp, computes age = get_timestamp() - ts, and raises SignatureExpired when age > max_age or age < 0.",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "py-4",
+   "repo": "pallets/itsdangerous",
+   "kind": "unanswerable",
+   "split": "dev",
+   "question": "How does the library connect to a Redis server to cache signatures?",
+   "relevant": [],
+   "expected_answer": "Refusal: there is no Redis or caching code.",
+   "why_hard": "grep -i 'redis|memcache' matches only 'Redistribution' in LICENSE.txt.",
+   "origin": "phase1"
+  },
+  {
+   "id": "py-5",
+   "repo": "pallets/itsdangerous",
+   "kind": "identifier",
+   "split": "test",
+   "question": "What does want_bytes do?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/encoding.py",
+     "start_line": 11,
+     "end_line": 17,
+     "grade": 2,
+     "symbol": "want_bytes"
+    }
+   ],
+   "expected_answer": "Encodes a str to bytes with the given encoding and errors; returns bytes unchanged.",
+   "why_hard": "",
+   "origin": "phase1"
+  },
+  {
+   "id": "py-6",
+   "repo": "pallets/itsdangerous",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where is a signature compared in constant time to avoid timing attacks?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 24,
+     "end_line": 28,
+     "grade": 2,
+     "symbol": "SigningAlgorithm.verify_signature"
+    }
+   ],
+   "expected_answer": "SigningAlgorithm.verify_signature uses hmac.compare_digest(sig, self.get_signature(key, value)).",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-7",
+   "repo": "pallets/itsdangerous",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does the URL-safe serializer decide whether to compress the payload?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/url_safe.py",
+     "start_line": 55,
+     "end_line": 69,
+     "grade": 2,
+     "symbol": "URLSafeSerializerMixin.dump_payload"
+    },
+    {
+     "file": "src/itsdangerous/url_safe.py",
+     "start_line": 23,
+     "end_line": 53,
+     "grade": 1,
+     "symbol": "URLSafeSerializerMixin.load_payload"
+    }
+   ],
+   "expected_answer": "dump_payload zlib-compresses the JSON and keeps the compressed form only if it is shorter by more than one byte, then marks it with a leading '.'; load_payload strips the '.' and decompresses.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-8",
+   "repo": "pallets/itsdangerous",
+   "kind": "flow",
+   "split": "test",
+   "question": "How does the library support rotating secret keys?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 227,
+     "end_line": 242,
+     "grade": 2,
+     "symbol": "Signer.verify_signature"
+    },
+    {
+     "file": "src/itsdangerous/serializer.py",
+     "start_line": 287,
+     "end_line": 307,
+     "grade": 2,
+     "symbol": "Serializer.iter_unsigners"
+    },
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 67,
+     "end_line": 73,
+     "grade": 1,
+     "symbol": "_make_keys_list"
+    },
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 175,
+     "end_line": 180,
+     "grade": 1,
+     "symbol": "Signer.secret_key"
+    }
+   ],
+   "expected_answer": "secret_key may be a list, oldest to newest; the newest key signs, and verify_signature tries every key from newest to oldest. Serializer.iter_unsigners also builds fallback signers for each key.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-9",
+   "repo": "pallets/itsdangerous",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What does _loads_unsafe_impl return when the signature is invalid?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/serializer.py",
+     "start_line": 367,
+     "end_line": 395,
+     "grade": 2,
+     "symbol": "Serializer._loads_unsafe_impl"
+    }
+   ],
+   "expected_answer": "(False, payload) loaded from the BadSignature's payload, or (False, None) when there is no payload or it cannot be loaded.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-10",
+   "repo": "pallets/itsdangerous",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What values can key_derivation take and what does each one do?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 182,
+     "end_line": 213,
+     "grade": 2,
+     "symbol": "Signer.derive_key"
+    },
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 76,
+     "end_line": 127,
+     "grade": 1,
+     "symbol": "Signer"
+    }
+   ],
+   "expected_answer": "concat: digest(salt + key); django-concat (default): digest(salt + b'signer' + key); hmac: HMAC of the salt keyed with the secret; none: the key unchanged; anything else raises TypeError.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-11",
+   "repo": "pallets/itsdangerous",
+   "kind": "literal",
+   "split": "test",
+   "question": "Where is the error 'The given separator cannot be used because it may be contained in the signature itself' raised?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 146,
+     "end_line": 151,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "Signer.__init__ raises ValueError when sep is in the base64 alphabet.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-12",
+   "repo": "pallets/itsdangerous",
+   "kind": "literal",
+   "split": "dev",
+   "question": "Which code raises 'Could not zlib decompress the payload before decoding the payload'?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/url_safe.py",
+     "start_line": 45,
+     "end_line": 51,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "URLSafeSerializerMixin.load_payload raises BadPayload when zlib.decompress fails on a payload marked compressed.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-13",
+   "repo": "pallets/itsdangerous",
+   "kind": "conceptual",
+   "split": "dev",
+   "question": "How do I create a token that carries a user's id and read it back later?",
+   "relevant": [
+    {
+     "file": "README.md",
+     "start_line": 16,
+     "end_line": 32,
+     "grade": 2
+    },
+    {
+     "file": "src/itsdangerous/serializer.py",
+     "start_line": 309,
+     "end_line": 320,
+     "grade": 1,
+     "symbol": "Serializer.dumps"
+    },
+    {
+     "file": "src/itsdangerous/serializer.py",
+     "start_line": 328,
+     "end_line": 343,
+     "grade": 1,
+     "symbol": "Serializer.loads"
+    }
+   ],
+   "expected_answer": "Create URLSafeSerializer('secret key', 'auth'), call dumps({...}) to get a token and loads(token) to get the data back.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-14",
+   "repo": "pallets/itsdangerous",
+   "kind": "conceptual",
+   "split": "test",
+   "question": "Why is SHA-1 not loaded until the moment it is used?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 40,
+     "end_line": 45,
+     "grade": 2,
+     "symbol": "_lazy_sha1"
+    }
+   ],
+   "expected_answer": "FIPS builds may not include SHA-1, so importing it as a default would fail before the developer can configure another digest.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-15",
+   "repo": "pallets/itsdangerous",
+   "kind": "trap",
+   "split": "dev",
+   "question": "When a timed serializer tries several signers, what happens if one finds the signature valid but expired?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/timed.py",
+     "start_line": 185,
+     "end_line": 220,
+     "grade": 2,
+     "symbol": "TimedSerializer.loads"
+    }
+   ],
+   "expected_answer": "TimedSerializer.loads re-raises SignatureExpired immediately and does not try the remaining signers.",
+   "why_hard": "Serializer.loads (serializer.py 328-343) has the same signer loop but no expiry case; only TimedSerializer.loads stops on SignatureExpired.",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-16",
+   "repo": "pallets/itsdangerous",
+   "kind": "trap",
+   "split": "test",
+   "question": "Which signing algorithm produces an empty signature?",
+   "relevant": [
+    {
+     "file": "src/itsdangerous/signer.py",
+     "start_line": 31,
+     "end_line": 37,
+     "grade": 2,
+     "symbol": "NoneAlgorithm"
+    }
+   ],
+   "expected_answer": "NoneAlgorithm.get_signature returns b''.",
+   "why_hard": "Four get_signature methods share the words 'signing', 'algorithm' and 'signature'; only NoneAlgorithm returns an empty one.",
+   "origin": "phase2"
+  },
+  {
+   "id": "py-17",
+   "repo": "pallets/itsdangerous",
+   "kind": "unanswerable",
+   "split": "test",
+   "question": "Which command-line tool does the library install for signing files?",
+   "relevant": [],
+   "expected_answer": "Refusal: the library has no command-line entry point.",
+   "why_hard": "No argparse, click or [project.scripts] anywhere in the tree.",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-1",
+   "repo": "pallets/click",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where does Click decide how wide the help text should be?",
+   "relevant": [
+    {
+     "file": "src/click/formatting.py",
+     "start_line": 127,
+     "end_line": 144,
+     "grade": 2,
+     "symbol": "HelpFormatter.__init__"
+    }
+   ],
+   "expected_answer": "HelpFormatter.__init__ uses FORCED_WIDTH if set, else max(min(terminal columns, max_width 80) - 2, 50).",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-2",
+   "repo": "pallets/click",
+   "kind": "location",
+   "split": "test",
+   "question": "Where does an option look up its value in an automatically named environment variable?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 3654,
+     "end_line": 3676,
+     "grade": 2,
+     "symbol": "Option.resolve_envvar_value"
+    },
+    {
+     "file": "src/click/core.py",
+     "start_line": 2774,
+     "end_line": 2817,
+     "grade": 1,
+     "symbol": "Parameter.resolve_envvar_value"
+    },
+    {
+     "file": "docs/options.md",
+     "start_line": 646,
+     "end_line": 716,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "Option.resolve_envvar_value falls back to f'{ctx.auto_envvar_prefix}_{self.name.upper()}' when no explicit envvar has a value.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-3",
+   "repo": "pallets/click",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where is the progress bar line written to the terminal?",
+   "relevant": [
+    {
+     "file": "src/click/_termui_impl.py",
+     "start_line": 250,
+     "end_line": 294,
+     "grade": 2,
+     "symbol": "ProgressBar.render_progress"
+    },
+    {
+     "file": "src/click/_termui_impl.py",
+     "start_line": 223,
+     "end_line": 248,
+     "grade": 1,
+     "symbol": "ProgressBar.format_progress_line"
+    }
+   ],
+   "expected_answer": "ProgressBar.render_progress builds the line with format_progress_line and writes it, clearing the previous line.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-4",
+   "repo": "pallets/click",
+   "kind": "location",
+   "split": "dev",
+   "question": "Where does the test runner replace stdin and stdout so it can capture a command's output?",
+   "relevant": [
+    {
+     "file": "src/click/testing.py",
+     "start_line": 398,
+     "end_line": 594,
+     "grade": 2,
+     "symbol": "CliRunner.isolation"
+    }
+   ],
+   "expected_answer": "CliRunner.isolation, a context manager that swaps sys.stdin, sys.stdout and sys.stderr for byte buffers.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-5",
+   "repo": "pallets/click",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does a group find and run the subcommand named on the command line?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 2048,
+     "end_line": 2114,
+     "grade": 2,
+     "symbol": "Group.invoke"
+    },
+    {
+     "file": "src/click/core.py",
+     "start_line": 2116,
+     "end_line": 2140,
+     "grade": 2,
+     "symbol": "Group.resolve_command"
+    }
+   ],
+   "expected_answer": "Group.invoke takes the remaining args, resolve_command looks up args[0] with get_command (retrying with token_normalize_func, else NoSuchCommand), then makes a sub-context and invokes the subcommand; chain mode repeats this for each subcommand.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-6",
+   "repo": "pallets/click",
+   "kind": "flow",
+   "split": "test",
+   "question": "In what order does a parameter take its value from the command line, environment, default map and default?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 2586,
+     "end_line": 2632,
+     "grade": 2,
+     "symbol": "Parameter.consume_value"
+    },
+    {
+     "file": "src/click/core.py",
+     "start_line": 3726,
+     "end_line": 3780,
+     "grade": 1,
+     "symbol": "Option.consume_value"
+    },
+    {
+     "file": "docs/options.md",
+     "start_line": 608,
+     "end_line": 628,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "Command line first, then the environment variable, then ctx.default_map, then the parameter default; the source is recorded as a ParameterSource.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-7",
+   "repo": "pallets/click",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does tab completion get triggered and produce its output?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 1647,
+     "end_line": 1677,
+     "grade": 2,
+     "symbol": "Command._main_shell_completion"
+    },
+    {
+     "file": "src/click/shell_completion.py",
+     "start_line": 19,
+     "end_line": 55,
+     "grade": 2,
+     "symbol": "shell_complete"
+    },
+    {
+     "file": "src/click/shell_completion.py",
+     "start_line": 696,
+     "end_line": 754,
+     "grade": 1,
+     "symbol": "_resolve_context"
+    }
+   ],
+   "expected_answer": "main calls _main_shell_completion, which reads the _{PROG}_COMPLETE variable; shell_complete splits it into shell and instruction and prints either the completion script (source) or the completions (complete), then exits.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-8",
+   "repo": "pallets/click",
+   "kind": "flow",
+   "split": "dev",
+   "question": "How does prompt keep asking when the input is invalid or the confirmation does not match?",
+   "relevant": [
+    {
+     "file": "src/click/termui.py",
+     "start_line": 168,
+     "end_line": 286,
+     "grade": 2,
+     "symbol": "prompt"
+    }
+   ],
+   "expected_answer": "prompt loops: it reads the value, converts it with the type (echoing the error and asking again on failure), and with confirmation_prompt asks again and repeats if the two values differ.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-9",
+   "repo": "pallets/click",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What does _make_default_short_help do?",
+   "relevant": [
+    {
+     "file": "src/click/utils.py",
+     "start_line": 62,
+     "end_line": 100,
+     "grade": 2,
+     "symbol": "_make_default_short_help"
+    }
+   ],
+   "expected_answer": "Takes the first paragraph of the help, cuts it at the end of the first sentence, and shortens it to max_length (45) with '...'.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-10",
+   "repo": "pallets/click",
+   "kind": "identifier",
+   "split": "test",
+   "question": "What does make_pass_decorator create?",
+   "relevant": [
+    {
+     "file": "src/click/decorators.py",
+     "start_line": 51,
+     "end_line": 97,
+     "grade": 2,
+     "symbol": "make_pass_decorator"
+    }
+   ],
+   "expected_answer": "A decorator like pass_obj that passes the innermost context object of a given type, optionally creating it with ensure=True.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-11",
+   "repo": "pallets/click",
+   "kind": "identifier",
+   "split": "dev",
+   "question": "What is ParameterSource used for?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 195,
+     "end_line": 231,
+     "grade": 2,
+     "symbol": "ParameterSource"
+    },
+    {
+     "file": "src/click/core.py",
+     "start_line": 2586,
+     "end_line": 2632,
+     "grade": 1,
+     "symbol": "Parameter.consume_value"
+    }
+   ],
+   "expected_answer": "An enum recording where a parameter's value came from: COMMANDLINE, ENVIRONMENT, DEFAULT, DEFAULT_MAP or PROMPT.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-12",
+   "repo": "pallets/click",
+   "kind": "literal",
+   "split": "dev",
+   "question": "Where is the error 'Got unexpected extra argument' raised?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 1415,
+     "end_line": 1423,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "Command.parse_args calls ctx.fail with it when arguments are left over and allow_extra_args is false.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-13",
+   "repo": "pallets/click",
+   "kind": "literal",
+   "split": "test",
+   "question": "Where does Click print 'Aborted!'?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 103,
+     "end_line": 105,
+     "grade": 2,
+     "symbol": "_echo_aborted"
+    },
+    {
+     "file": "src/click/core.py",
+     "start_line": 1611,
+     "end_line": 1625,
+     "grade": 1
+    }
+   ],
+   "expected_answer": "_echo_aborted writes it to stderr; Command.main uses it for Abort, EOFError and KeyboardInterrupt in standalone mode.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-14",
+   "repo": "pallets/click",
+   "kind": "literal",
+   "split": "dev",
+   "question": "How is the name of the _{PROG_NAME}_COMPLETE environment variable built?",
+   "relevant": [
+    {
+     "file": "src/click/core.py",
+     "start_line": 1665,
+     "end_line": 1667,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "The program name with '-' and '.' replaced by '_', wrapped as _{name}_COMPLETE and uppercased.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-15",
+   "repo": "pallets/click",
+   "kind": "conceptual",
+   "split": "dev",
+   "question": "Why does Click not auto-correct or expand abbreviated long options?",
+   "relevant": [
+    {
+     "file": "docs/why.md",
+     "start_line": 98,
+     "end_line": 106,
+     "grade": 2
+    }
+   ],
+   "expected_answer": "It is a backwards-compatibility liability: adding a new parameter later could silently change what an abbreviation means.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-16",
+   "repo": "pallets/click",
+   "kind": "conceptual",
+   "split": "test",
+   "question": "How do I test a Click command without running it in a real terminal?",
+   "relevant": [
+    {
+     "file": "docs/testing.md",
+     "start_line": 24,
+     "end_line": 54,
+     "grade": 2
+    },
+    {
+     "file": "src/click/testing.py",
+     "start_line": 596,
+     "end_line": 739,
+     "grade": 1,
+     "symbol": "CliRunner.invoke"
+    }
+   ],
+   "expected_answer": "Use click.testing.CliRunner and runner.invoke(command, args), then check result.exit_code and result.output.",
+   "why_hard": "",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-17",
+   "repo": "pallets/click",
+   "kind": "trap",
+   "split": "dev",
+   "question": "What message is shown when a value is not one of the allowed choices?",
+   "relevant": [
+    {
+     "file": "src/click/types.py",
+     "start_line": 478,
+     "end_line": 490,
+     "grade": 2,
+     "symbol": "Choice.get_invalid_choice_message"
+    },
+    {
+     "file": "src/click/types.py",
+     "start_line": 454,
+     "end_line": 476,
+     "grade": 1,
+     "symbol": "Choice.convert"
+    }
+   ],
+   "expected_answer": "'{value!r} is not {choice}.' or '{value!r} is not one of {choices}.', built by Choice.get_invalid_choice_message.",
+   "why_hard": "Other types say '... is not a valid ...', and tests assert the same message text in many places.",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-18",
+   "repo": "pallets/click",
+   "kind": "trap",
+   "split": "dev",
+   "question": "When a file option is opened for writing, when is the file actually created?",
+   "relevant": [
+    {
+     "file": "src/click/types.py",
+     "start_line": 975,
+     "end_line": 982,
+     "grade": 2,
+     "symbol": "File.resolve_lazy_flag"
+    },
+    {
+     "file": "src/click/utils.py",
+     "start_line": 103,
+     "end_line": 196,
+     "grade": 2,
+     "symbol": "_LazyFile"
+    },
+    {
+     "file": "src/click/types.py",
+     "start_line": 984,
+     "end_line": 1027,
+     "grade": 1,
+     "symbol": "File.convert"
+    }
+   ],
+   "expected_answer": "Write modes are lazy by default: File.convert returns a _LazyFile that opens the real file on first use; '-' is never lazy.",
+   "why_hard": "open_stream, File.convert and the docs on file handling all talk about opening files; only resolve_lazy_flag and _LazyFile explain the delay.",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-19",
+   "repo": "pallets/click",
+   "kind": "trap",
+   "split": "test",
+   "question": "How does the progress bar animate when the total length is unknown?",
+   "relevant": [
+    {
+     "file": "src/click/_termui_impl.py",
+     "start_line": 204,
+     "end_line": 221,
+     "grade": 2,
+     "symbol": "ProgressBar.format_bar"
+    }
+   ],
+   "expected_answer": "format_bar places one fill character at a position that moves with cos(pos * time_per_iteration) across an empty bar.",
+   "why_hard": "About 20 ProgressBar methods share the vocabulary; only format_bar has the unknown-length animation.",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-20",
+   "repo": "pallets/click",
+   "kind": "unanswerable",
+   "split": "dev",
+   "question": "How does Click send usage telemetry?",
+   "relevant": [],
+   "expected_answer": "Refusal: there is no telemetry.",
+   "why_hard": "git grep -i 'telemetry|analytics' finds nothing.",
+   "origin": "phase2"
+  },
+  {
+   "id": "cl-21",
+   "repo": "pallets/click",
+   "kind": "unanswerable",
+   "split": "test",
+   "question": "How does Click check PyPI for a newer version of itself?",
+   "relevant": [],
+   "expected_answer": "Refusal: there is no update check.",
+   "why_hard": "git grep -i pypi in src finds nothing.",
+   "origin": "phase2"
+  }
+ ]
+}
