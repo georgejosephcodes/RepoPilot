@@ -1,4 +1,4 @@
--- Phase 2 step 4 verify-first probe: how PostgreSQL full-text search tokenises code, and what a generated
+-- Probe: how PostgreSQL full-text search tokenises code, and what a generated
 -- tsvector column on chunks would cost. Read-only on real tables: everything is built in a TEMP table that
 -- disappears when the session ends. No API cost.
 -- Run: cd /home/georgejoseph/Rag-project && docker compose exec -T postgres psql -U repopilot -d repopilot < worker/scripts/probe_fulltext.sql

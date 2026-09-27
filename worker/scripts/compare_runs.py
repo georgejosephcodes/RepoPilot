@@ -1,6 +1,6 @@
 """Compare two eval runs question by question: same retrieved chunk ids, in the same order?
 
-Used for the step 7 rollback proof (PHASE2.md 7.10): a run made after a refactor must retrieve exactly what the
+Used as a rollback proof: a run made after a refactor must retrieve exactly what the
 committed run retrieved. Only questions present in both runs are compared. Exit status 1 on any difference.
 Standard library only; reads two JSON files, sends nothing.
 

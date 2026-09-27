@@ -38,7 +38,7 @@ const (
 	ScoreBM25
 )
 
-// BM25 parameters, fixed in PHASE2.md 4.4 before any evaluation run.
+// BM25 parameters, the usual Okapi values, fixed before any evaluation run.
 const (
 	bm25K1 = 1.2
 	bm25B  = 0.75

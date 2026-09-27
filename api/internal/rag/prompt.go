@@ -12,7 +12,7 @@ import (
 // RefusalSentence is what the model must say when the context does not answer the question.
 const RefusalSentence = "Not enough evidence in the retrieved code."
 
-// SystemPrompt is the text verified by the step 7 probe with gemini-3.5-flash-lite: it cited in the requested
+// SystemPrompt is the text verified by worker/scripts/probe_gemini_generate.py with gemini-3.5-flash-lite: it cited in the requested
 // form, refused the unanswerable question with the exact sentence, and ignored an injected instruction.
 const SystemPrompt = `You answer questions about a source code repository using ONLY the numbered context blocks in the user message.
 Rules:

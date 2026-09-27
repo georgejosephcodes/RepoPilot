@@ -1,5 +1,5 @@
 """Ask every evaluation question through the running API in one retrieval mode, check the answers mechanically, and
-compare the two modes (Phase 2 step 9).
+compare the two modes.
 
     python3 worker/scripts/run_answers.py --mode hybrid_rerank --clones /tmp/demo --dry-run   # checks the setup only
     python3 worker/scripts/run_answers.py --mode hybrid_rerank --clones /tmp/demo             # asks the questions
@@ -28,7 +28,7 @@ from scripts import run_demo as demo  # noqa: E402
 
 MODES = ("vector", "hybrid_rerank")
 PACE_SECONDS = 9.0  # the API allows 7 questions per minute per client
-LATENCY_GATE_MS = 2000  # PHASE2 gate item 5: median end-to-end time grows by at most 2 s
+LATENCY_GATE_MS = 2000  # gate: the median end-to-end time grows by at most 2 s over vector retrieval
 SPOT_CHECKS = 10  # unchanged pairs given a human verdict, the first ones by id
 
 

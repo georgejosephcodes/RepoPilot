@@ -1,4 +1,4 @@
-"""Check what the Gemini API really does before adapters are written (step 5 verify-first).
+"""Check what the Gemini API really does before adapters are written.
 
 Reads GEMINI_API_KEY from the environment and never prints it. Standard library only.
 Run:  set -a && . ./.env && set +a && worker/.venv/bin/python worker/scripts/probe_gemini.py > gemini_probe.txt

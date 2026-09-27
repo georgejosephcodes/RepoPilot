@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Config for the answer model. Defaults are the values verified by the step 7 probe.
+// Config for the answer model. Defaults are the values verified by worker/scripts/probe_gemini_generate.py.
 type Config struct {
 	BaseURL         string
 	APIKey          string

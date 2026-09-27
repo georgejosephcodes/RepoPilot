@@ -37,12 +37,12 @@ import (
 
 var variants = map[string]bool{"vector": true, "keyword-tsrank": true, "keyword-bm25": true, "hybrid": true, "hybrid-rerank": true}
 
-// rerankGap spaces upstream rerank calls: Gemini allows 15 requests per minute (PHASE2.md 6.3).
+// rerankGap spaces upstream rerank calls: Gemini's free tier allows 15 requests per minute.
 const rerankGap = 4200 * time.Millisecond
 
 func usesHybrid(variant string) bool { return variant == "hybrid" || variant == "hybrid-rerank" }
 
-// hybridParams are the tunable hybrid settings (PHASE2.md step 5).
+// hybridParams are the tunable hybrid settings (chosen on the dev split, see docs/phase2/hybrid-dev.md).
 type hybridParams struct {
 	RRFK          int
 	KeywordWeight float64

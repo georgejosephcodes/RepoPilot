@@ -1,4 +1,4 @@
-"""Check what OpenRouter's free embedding models really do (step 5 verify-first).
+"""Check what OpenRouter's free embedding models really do.
 
 Reads OPENROUTER_API_KEY from the environment and never prints it. Standard library only.
 Uses about 15 requests, and free models allow 50 per day without purchased credit.

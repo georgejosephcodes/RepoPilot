@@ -1,4 +1,4 @@
--- Keyword search over chunks (Phase 2 step 4). A generated tsvector, so the worker needs no change and
+-- Keyword search over chunks (Phase 2). A generated tsvector, so the worker needs no change and
 -- existing rows are filled by PostgreSQL when the column is added: no re-embedding, no API cost.
 -- Text is normalised to runs of [A-Za-z0-9_] first, because the default parser would read dotted names as host
 -- names and paths as single file tokens. The vector has three parts:

@@ -1,4 +1,4 @@
-"""Check how Gemini flash-lite models behave on a RAG prompt (step 7 verify-first).
+"""Check how Gemini flash-lite models behave on a RAG prompt.
 
 Reads GEMINI_API_KEY from the environment and never prints it. Standard library only.
 About 14 requests, spaced out for the 15-per-minute limit.

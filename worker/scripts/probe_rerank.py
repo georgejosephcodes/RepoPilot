@@ -1,4 +1,4 @@
-"""Phase 2 step 6 verify-first: can we rerank the hybrid top 20, with what, at what cost and latency?
+"""Probe: can we rerank the hybrid top 20, with what, at what cost and latency?
 
 Takes 6 dev questions from docs/phase2/runs/hybrid-dev-chosen.json (their top 20 chunks, read from the database by
 id), reranks them with each OpenRouter rerank model and with Gemini as a list reranker, and prints the first

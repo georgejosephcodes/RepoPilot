@@ -33,7 +33,7 @@ func main() {
 		addr = ":8080"
 	}
 	rateLimit := intEnv("RATE_LIMIT_PER_MIN", 30, 0)
-	// Each question makes 2 Gemini requests (rerank and answer) and Gemini allows 15 per minute (PHASE2.md 7.6).
+	// Each question makes 2 Gemini requests (rerank and answer), and Gemini's free tier allows 15 per minute.
 	queryRateLimit := intEnv("QUERY_RATE_LIMIT_PER_MIN", 7, 0)
 
 	ctx := context.Background()

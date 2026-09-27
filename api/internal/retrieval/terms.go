@@ -14,7 +14,7 @@ type KeywordQuery struct {
 	Lexemes []string
 }
 
-// Question words that carry no search value. Fixed before any evaluation run (PHASE2.md 4.3); code words such
+// Question words that carry no search value. Fixed before any evaluation run; code words such
 // as test, file or error are kept on purpose.
 var stopwords = map[string]bool{}
 

@@ -1,4 +1,5 @@
-// Package rerank reorders retrieved chunks with a second, more careful relevance judgement (PHASE2.md step 6).
+// Package rerank reorders retrieved chunks with a second, more careful relevance judgement
+// (evaluated in docs/phase2/hybrid-rerank-dev-d20.md).
 //
 // The reranker used here is the answer model asked for a JSON list of candidate numbers. It can only return
 // numbers, so a hostile chunk can at worst reorder candidates; it never reaches the answer text or the citations.

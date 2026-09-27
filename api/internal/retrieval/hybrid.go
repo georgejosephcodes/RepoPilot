@@ -13,7 +13,7 @@ import (
 //	score = 1/(RRFK + vector rank) + KeywordWeight/(RRFK + keyword rank), times TestPenalty for test files.
 //
 // RRF needs no calibration between cosine distances and keyword scores; only ranks matter. Settings are chosen
-// on the dev split (PHASE2.md step 5).
+// on the dev split (docs/phase2/hybrid-dev.md).
 type HybridRetriever struct {
 	Vector        Retriever
 	Keyword       Retriever

@@ -1,5 +1,5 @@
-// Package pipeline builds the retriever the API uses from settings (PHASE2.md step 7.3). The defaults are the
-// values chosen on the dev split in steps 5 and 6; RETRIEVAL_MODE=vector gives Phase 1 retrieval back.
+// Package pipeline builds the retriever the API uses from settings. The defaults are the
+// values chosen on the dev split (docs/phase2/results.md); RETRIEVAL_MODE=vector gives Phase 1 retrieval back.
 package pipeline
 
 import (
@@ -31,7 +31,7 @@ type Config struct {
 	RerankTimeout time.Duration
 }
 
-// DefaultConfig is the dev-chosen configuration: hybrid w0.75 p0.5 pool 20 (step 5), reranked at depth 20 (step 6).
+// DefaultConfig is the dev-chosen configuration: hybrid w0.75 p0.5 pool 20, reranked at depth 20.
 func DefaultConfig() Config {
 	return Config{
 		Mode:          ModeHybridRerank,

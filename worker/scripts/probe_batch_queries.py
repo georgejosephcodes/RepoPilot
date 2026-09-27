@@ -1,4 +1,4 @@
-"""Check that embedding questions in one batch gives the same vectors as embedding them one by one (Phase 2 step 2).
+"""Check that embedding questions in one batch gives the same vectors as embedding them one by one.
 
 Uses the same settings as the API (EMBED_BASE_URL, EMBED_API_KEY, EMBED_MODEL, input_type search_query) and never
 prints the key. Costs 4 requests: three single questions, then the same three as one batch.
