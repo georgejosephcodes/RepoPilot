@@ -62,6 +62,30 @@ func TextHash(prepared string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// Misses counts the distinct texts that are not cached, so a caller can see what a batch would cost before
+// sending it. Upstream requests needed = ceil(misses / batch size).
+func (p *PersistentEmbedder) Misses(ctx context.Context, texts []string) (int, error) {
+	seen := map[string]bool{}
+	var unique []string
+	for _, t := range texts {
+		h := TextHash(p.prepare(strings.TrimSpace(t)))
+		if !seen[h] {
+			seen[h] = true
+			unique = append(unique, h)
+		}
+	}
+	found, err := p.store.Get(ctx, p.inner.ModelName(), unique)
+	if err != nil {
+		return 0, err
+	}
+	return len(unique) - len(found), nil
+}
+
+// Requests is how many upstream requests n misses need.
+func (p *PersistentEmbedder) Requests(misses int) int {
+	return (misses + p.batchSize - 1) / p.batchSize
+}
+
 // EmbedQueries returns one vector per text, in input order. Repeated texts cost one lookup and at most one
 // upstream slot; misses go upstream in batches of at most batchSize.
 func (p *PersistentEmbedder) EmbedQueries(ctx context.Context, texts []string) ([][]float32, error) {

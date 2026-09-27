@@ -286,3 +286,22 @@ func TestVectorLiteralRejectsBadInput(t *testing.T) {
 		t.Error("NaN must fail")
 	}
 }
+
+func TestPersistentMissesCountsDistinctUncachedTexts(t *testing.T) {
+	inner := &batchRecorder{Fake: NewFake(8)}
+	p := NewPersistent(inner, newMemStore(), 2)
+	ctx := context.Background()
+	if _, err := p.EmbedQuery(ctx, "cached"); err != nil {
+		t.Fatal(err)
+	}
+	n, err := p.Misses(ctx, []string{"cached", " new ", "new", "other", "third"})
+	if err != nil || n != 3 {
+		t.Fatalf("misses = %d, %v; want 3", n, err)
+	}
+	if p.Requests(n) != 2 || p.Requests(0) != 0 || p.Requests(2) != 1 {
+		t.Fatal("requests must be ceil(misses / batch size)")
+	}
+	if inner.Calls() != 1 {
+		t.Fatal("counting misses must not call upstream")
+	}
+}
