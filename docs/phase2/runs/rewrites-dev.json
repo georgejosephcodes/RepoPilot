@@ -1,0 +1,205 @@
+{
+ "152da57ec24294c52931373a4a414852001fe3066705e07c125e67a7c51264e6": {
+  "question": "How does isAll combine several predicates into one?",
+  "terms": [
+   "isAll",
+   "predicate",
+   "predicates",
+   "all",
+   "combine",
+   "every",
+   "filter"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 7056
+ },
+ "2fc4669de6920e91a576d4a87909c6d3c486415ac667f7ad3ccb499f2d307c83": {
+  "question": "How does the outyet server check whether a Go release exists?",
+  "terms": [
+   "outyet",
+   "main.go",
+   "version",
+   "check",
+   "release",
+   "go",
+   "poll",
+   "http",
+   "url",
+   "response"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 9492
+ },
+ "458817d09e2b1c3ed14c0a5374a2682c2aa00f6a1513b6f2aa16f73ceaae0afe": {
+  "question": "Which check tells whether a string is a valid URL?",
+  "terms": [
+   "url",
+   "validUrl",
+   "isUrl",
+   "validateUrl",
+   "URL",
+   "is_url",
+   "check_url",
+   "isValidUrl"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 1822
+ },
+ "5a83b697d56ce43e63853ac032eb8bc72748b85f5dd2d37c63d23ded472841d8": {
+  "question": "What does PrintSkeleton print?",
+  "terms": [
+   "PrintSkeleton",
+   "print",
+   "skeleton",
+   "ast",
+   "dump",
+   "node",
+   "tree",
+   "format",
+   "output",
+   "printer"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 6832
+ },
+ "6db25a75e27db0308b69ab0cf8f8c013c9538dbb124980a0362df46662a2b108": {
+  "question": "Where is the function that detects the type name of a value?",
+  "terms": [
+   "detect",
+   "type",
+   "typename",
+   "typeName",
+   "type_name",
+   "get_type",
+   "typeof",
+   "typeOf",
+   "kind"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 6028
+ },
+ "8002529ffb5109deca978386e047b086816aab9ae5db6af27ba432f605c6ea73": {
+  "question": "In the third version of the indent handler, how does WithGroup avoid writing the group name right away?",
+  "terms": [
+   "WithGroup",
+   "group",
+   "prefix",
+   "handler",
+   "indent",
+   "buf",
+   "depth",
+   "name",
+   "write",
+   "slog"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 8704
+ },
+ "851888cf2707463eb386a41a3e0808d5685933bbe37a039233bfed82b9a55395": {
+  "question": "How does isPlainObject tell a plain object apart from other objects?",
+  "terms": [
+   "isPlainObject",
+   "getPrototypeOf",
+   "constructor",
+   "toString",
+   "prototype",
+   "Object",
+   "plain"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 1636
+ },
+ "8b9a9ff027bfd20607624bfa1b983da81352a61ab7bf5faac99cb2946ce5acc4": {
+  "question": "Where is the error 'no build information available' returned?",
+  "terms": [
+   "no build information available",
+   "BuildInfo",
+   "ErrNoBuildInfo",
+   "GetBuildInfo",
+   "ReadBuildInfo",
+   "modinfo"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 9807
+ },
+ "948675ce378bf3ebca0884683b002d9af568864d9f9cdff40ebf057c9eb53778": {
+  "question": "What does CheckNilFuncComparison report?",
+  "terms": [
+   "CheckNilFuncComparison",
+   "nil",
+   "func",
+   "comparison",
+   "report",
+   "checker",
+   "inspect",
+   "diagnostic"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 6458
+ },
+ "c2dd0cb4ee12f91e7d1e435408b8cab060d086d3a27825e9c72911f896bf039c": {
+  "question": "What can be passed as the range argument of isInRange?",
+  "terms": [
+   "isInRange",
+   "range",
+   "number",
+   "Range",
+   "Interval",
+   "bounds",
+   "min",
+   "max",
+   "between",
+   "checkRange"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 1114
+ },
+ "c9d10fb265d83596e0168ec66ce39fd48a9966c2d7b6e870b5bd12389bb88800": {
+  "question": "Where does the library decide whether a value is a DOM element?",
+  "terms": [
+   "isElement",
+   "DOM",
+   "element",
+   "isDOM",
+   "nodeType",
+   "Element",
+   "isNode"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 2564
+ },
+ "d5f9d17fd7be61de0a543cbe33c49f633a6108eccf307c6db54fab40df51e7e9": {
+  "question": "How does assertAll build its error message when a value fails?",
+  "terms": [
+   "assertAll",
+   "errorMessage",
+   "failure",
+   "failures",
+   "build",
+   "format",
+   "MultipleFailuresError",
+   "Message",
+   "collect"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 2270
+ },
+ "d75b8fb07c7245bcb9ab7ec1949923272f01262ccb273464d573e748eabe9df0": {
+  "question": "Why use this package instead of instanceof?",
+  "terms": [
+   "instanceof",
+   "is",
+   "type",
+   "check",
+   "compare",
+   "safe",
+   "protocol",
+   "constructor",
+   "custom",
+   "duck",
+   "validation"
+  ],
+  "model": "rewrite-v1/gemini-3.5-flash-lite",
+  "took_ms": 1242
+ }
+}
