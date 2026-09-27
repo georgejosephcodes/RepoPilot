@@ -1,6 +1,6 @@
 {
  "version": 1,
- "labels_frozen": false,
+ "labels_frozen": true,
  "description": "Phase 2 retrieval evaluation set. Relevance labels are line spans read from the real source at the pinned commits, written before any retrieval run. grade 2: the span answers the question; grade 1: useful context. A retrieved chunk hits a span when the file is equal and the line ranges overlap. Unanswerable questions have no spans; the only correct answer is a refusal.",
  "repositories": [
   {
