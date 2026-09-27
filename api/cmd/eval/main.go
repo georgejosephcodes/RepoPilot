@@ -29,11 +29,25 @@ import (
 	"repopilot/api/internal/retrieval"
 )
 
-var variants = map[string]bool{"vector": true, "keyword-tsrank": true, "keyword-bm25": true}
+var variants = map[string]bool{"vector": true, "keyword-tsrank": true, "keyword-bm25": true, "hybrid": true}
+
+// hybridParams are the tunable hybrid settings (PHASE2.md step 5).
+type hybridParams struct {
+	RRFK          int
+	KeywordWeight float64
+	TestPenalty   float64
+	Pool          int
+}
 
 // retrieverFor builds the retriever a variant names.
-func retrieverFor(variant string, pool *pgxpool.Pool, model string, dim int) retrieval.Retriever {
+func retrieverFor(variant string, pool *pgxpool.Pool, model string, dim int, hp hybridParams) retrieval.Retriever {
 	switch variant {
+	case "hybrid":
+		return retrieval.HybridRetriever{
+			Vector:  retrieval.VectorRetriever{Searcher: retrieval.NewPgSearcher(pool, model, dim)},
+			Keyword: retrieval.NewKeywordRetriever(pool, retrieval.ScoreBM25),
+			RRFK:    hp.RRFK, KeywordWeight: hp.KeywordWeight, TestPenalty: hp.TestPenalty, Pool: hp.Pool,
+		}
 	case "keyword-tsrank":
 		return retrieval.NewKeywordRetriever(pool, retrieval.ScoreTSRank)
 	case "keyword-bm25":
@@ -45,7 +59,12 @@ func retrieverFor(variant string, pool *pgxpool.Pool, model string, dim int) ret
 
 func main() {
 	questionsPath := flag.String("questions", "../docs/phase2/eval.json", "evaluation set")
-	variant := flag.String("variant", "vector", "retrieval variant: vector, keyword-tsrank or keyword-bm25")
+	variant := flag.String("variant", "vector", "retrieval variant: vector, keyword-tsrank, keyword-bm25 or hybrid")
+	var hp hybridParams
+	flag.IntVar(&hp.RRFK, "rrf-k", 60, "hybrid: RRF constant")
+	flag.Float64Var(&hp.KeywordWeight, "keyword-weight", 1, "hybrid: weight of the keyword list, in (0, 1]")
+	flag.Float64Var(&hp.TestPenalty, "test-penalty", 1, "hybrid: multiplier for test files, in (0, 1]; 1 = none")
+	flag.IntVar(&hp.Pool, "pool", 20, "hybrid: chunks taken from each list, 1..50")
 	split := flag.String("split", "dev", "dev, test or all")
 	final := flag.Bool("final", false, "allow the test split (and all); use only for the baseline and the final run")
 	outPath := flag.String("out", "", "write the run as JSON here")
@@ -56,6 +75,9 @@ func main() {
 	flag.Parse()
 
 	if err := checkFlags(*variant, *split, *final); err != nil {
+		fatal(err.Error())
+	}
+	if err := checkHybrid(hp); *variant == "hybrid" && err != nil {
 		fatal(err.Error())
 	}
 	raw, err := os.ReadFile(*questionsPath)
@@ -138,7 +160,7 @@ func main() {
 	if err != nil {
 		fatal("embed questions: " + err.Error())
 	}
-	results, err := retrieveAll(ctx, qs, vecs, ids, retrieverFor(*variant, pool, upstream.ModelName(), upstream.Dimension()))
+	results, err := retrieveAll(ctx, qs, vecs, ids, retrieverFor(*variant, pool, upstream.ModelName(), upstream.Dimension(), hp))
 	if err != nil {
 		fatal("retrieve: " + err.Error())
 	}
@@ -149,6 +171,7 @@ func main() {
 			Variant: *variant, Depth: Depth, Split: *split, Model: upstream.ModelName(), Dimension: upstream.Dimension(),
 			LabelsSHA256: hex.EncodeToString(sum[:]), LabelsFrozen: set.LabelsFrozen, CodeCommit: codeCommit(),
 			Repositories: set.Repositories, CreatedAt: time.Now().UTC().Format(time.RFC3339),
+			Params: paramsFor(*variant, hp),
 		},
 		Questions: results,
 	}
@@ -183,6 +206,23 @@ func checkFlags(variant, split string, final bool) error {
 		return fmt.Errorf("split must be dev, test or all")
 	}
 	return nil
+}
+
+func checkHybrid(hp hybridParams) error {
+	if hp.RRFK < 1 || hp.KeywordWeight <= 0 || hp.KeywordWeight > 1 || hp.TestPenalty <= 0 || hp.TestPenalty > 1 ||
+		hp.Pool < 1 || hp.Pool > retrieval.MaxK {
+		return fmt.Errorf("hybrid settings out of range: -rrf-k >= 1, -keyword-weight and -test-penalty in (0, 1], -pool 1..%d", retrieval.MaxK)
+	}
+	return nil
+}
+
+// paramsFor records the settings a variant ran with, so every run file names its configuration.
+func paramsFor(variant string, hp hybridParams) map[string]float64 {
+	if variant != "hybrid" {
+		return nil
+	}
+	return map[string]float64{"rrf_k": float64(hp.RRFK), "keyword_weight": hp.KeywordWeight,
+		"test_penalty": hp.TestPenalty, "pool": float64(hp.Pool)}
 }
 
 func readRun(path string) (Run, error) {

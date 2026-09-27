@@ -109,11 +109,33 @@ func TestCheckFlags(t *testing.T) {
 			t.Fatalf("%s with -final must run", s)
 		}
 	}
-	if checkFlags("keyword-tsrank", "dev", false) != nil || checkFlags("keyword-bm25", "dev", false) != nil {
+	if checkFlags("keyword-tsrank", "dev", false) != nil || checkFlags("keyword-bm25", "dev", false) != nil || checkFlags("hybrid", "dev", false) != nil {
 		t.Fatal("keyword variants must be accepted")
 	}
-	if checkFlags("hybrid", "dev", false) == nil || checkFlags("vector", "train", true) == nil {
+	if checkFlags("reranked", "dev", false) == nil || checkFlags("vector", "train", true) == nil {
 		t.Fatal("unknown variant or split must fail")
+	}
+}
+
+func TestCheckHybrid(t *testing.T) {
+	good := hybridParams{RRFK: 60, KeywordWeight: 0.75, TestPenalty: 0.5, Pool: 20}
+	if checkHybrid(good) != nil {
+		t.Fatal("good settings rejected")
+	}
+	for _, bad := range []hybridParams{
+		{RRFK: 0, KeywordWeight: 1, TestPenalty: 1, Pool: 20},
+		{RRFK: 60, KeywordWeight: 0, TestPenalty: 1, Pool: 20},
+		{RRFK: 60, KeywordWeight: 1.1, TestPenalty: 1, Pool: 20},
+		{RRFK: 60, KeywordWeight: 1, TestPenalty: 0, Pool: 20},
+		{RRFK: 60, KeywordWeight: 1, TestPenalty: 1, Pool: 0},
+		{RRFK: 60, KeywordWeight: 1, TestPenalty: 1, Pool: 51},
+	} {
+		if checkHybrid(bad) == nil {
+			t.Errorf("%+v accepted", bad)
+		}
+	}
+	if paramsFor("vector", good) != nil || paramsFor("hybrid", good)["test_penalty"] != 0.5 {
+		t.Fatal("params recorded wrongly")
 	}
 }
 

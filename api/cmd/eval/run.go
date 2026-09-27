@@ -20,16 +20,17 @@ type Run struct {
 }
 
 type Settings struct {
-	Variant      string    `json:"variant"`
-	Depth        int       `json:"depth"` // chunks retrieved per question
-	Split        string    `json:"split"`
-	Model        string    `json:"embed_model"`
-	Dimension    int       `json:"embed_dimension"`
-	LabelsSHA256 string    `json:"labels_sha256"`
-	LabelsFrozen bool      `json:"labels_frozen"`
-	CodeCommit   string    `json:"code_commit"`
-	Repositories []RepoPin `json:"repositories"`
-	CreatedAt    string    `json:"created_at"`
+	Variant      string             `json:"variant"`
+	Depth        int                `json:"depth"` // chunks retrieved per question
+	Split        string             `json:"split"`
+	Model        string             `json:"embed_model"`
+	Dimension    int                `json:"embed_dimension"`
+	LabelsSHA256 string             `json:"labels_sha256"`
+	LabelsFrozen bool               `json:"labels_frozen"`
+	CodeCommit   string             `json:"code_commit"`
+	Repositories []RepoPin          `json:"repositories"`
+	CreatedAt    string             `json:"created_at"`
+	Params       map[string]float64 `json:"params,omitempty"` // variant settings, for example the hybrid weights
 }
 
 type QuestionResult struct {

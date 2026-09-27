@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"repopilot/api/internal/evalmetrics"
@@ -16,6 +17,18 @@ func renderReport(run Run, base *Run) string {
 	fmt.Fprintf(&b, "- Split: **%s**, %d questions (%d answerable, scored; unanswerable questions are listed separately)\n",
 		s.Split, len(run.Questions), run.Overall.N)
 	fmt.Fprintf(&b, "- Embedding model: `%s` (%d dimensions); %d chunks retrieved per question\n", s.Model, s.Dimension, s.Depth)
+	if len(s.Params) > 0 {
+		keys := make([]string, 0, len(s.Params))
+		for k := range s.Params {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, len(keys))
+		for i, k := range keys {
+			parts[i] = fmt.Sprintf("%s %g", k, s.Params[k])
+		}
+		fmt.Fprintf(&b, "- Settings: %s\n", strings.Join(parts, ", "))
+	}
 	frozen := "not frozen"
 	if s.LabelsFrozen {
 		frozen = "frozen"

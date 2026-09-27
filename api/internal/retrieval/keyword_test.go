@@ -187,3 +187,22 @@ func TestKeywordCannotTellAnIdentifierFromTheSameWordsInProse(t *testing.T) {
 		}
 	}
 }
+
+func TestHybridOverPostgresUsesBothLists(t *testing.T) {
+	pool := testPool(t)
+	repo := seedKeywordRepo(t, pool)
+	h := HybridRetriever{
+		Vector:  VectorRetriever{Searcher: searcher(pool)},
+		Keyword: NewKeywordRetriever(pool, ScoreBM25),
+		RRFK:    60, KeywordWeight: 1, TestPenalty: 0.5, Pool: 20,
+	}
+	got, err := h.Retrieve(context.Background(), repo, "What does want_bytes do?", basis(0), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// every seeded chunk has the same vector, so the vector list alone would order by id; the keyword list
+	// must lift encoding.py (want_bytes) to the top
+	if len(got) != 5 || got[0].FilePath != "src/encoding.py" {
+		t.Fatalf("got %v", files(got))
+	}
+}
