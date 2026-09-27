@@ -52,20 +52,21 @@ type Retrieved struct {
 	Kind     string  `json:"kind"`
 	ChunkID  int64   `json:"chunk_id"`
 	Distance float64 `json:"distance"`
+	Score    float64 `json:"score,omitempty"` // keyword variants only
 	Grade    int     `json:"grade"`
 }
 
 // Depth is how many chunks each question retrieves: enough to score reciprocal rank to MaxRank.
 const Depth = evalmetrics.MaxRank
 
-// retrieveAll runs one search per question with its precomputed vector and scores it.
-func retrieveAll(ctx context.Context, qs []Question, vecs [][]float32, ids map[string]int64, s retrieval.Searcher) ([]QuestionResult, error) {
+// retrieveAll runs one retrieval per question with its precomputed vector and scores it.
+func retrieveAll(ctx context.Context, qs []Question, vecs [][]float32, ids map[string]int64, r retrieval.Retriever) ([]QuestionResult, error) {
 	if len(vecs) != len(qs) {
 		return nil, fmt.Errorf("got %d vectors for %d questions", len(vecs), len(qs))
 	}
 	out := make([]QuestionResult, 0, len(qs))
 	for i, q := range qs {
-		chunks, err := s.Search(ctx, ids[q.Repo], vecs[i], Depth)
+		chunks, err := r.Retrieve(ctx, ids[q.Repo], q.Question, vecs[i], Depth)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", q.ID, err)
 		}
@@ -77,7 +78,7 @@ func retrieveAll(ctx context.Context, qs []Question, vecs [][]float32, ids map[s
 		r := QuestionResult{ID: q.ID, Repo: q.Repo, Kind: q.Kind, Split: q.Split, Question: q.Question, Retrieved: make([]Retrieved, len(chunks))}
 		for j, c := range chunks {
 			r.Retrieved[j] = Retrieved{Rank: j + 1, File: c.FilePath, Start: c.StartLine, End: c.EndLine, Symbol: c.Symbol,
-				Kind: c.Kind, ChunkID: c.ID, Distance: c.Distance, Grade: hits[j]}
+				Kind: c.Kind, ChunkID: c.ID, Distance: c.Distance, Score: c.Score, Grade: hits[j]}
 		}
 		if len(chunks) > 0 {
 			r.TopDistance = chunks[0].Distance

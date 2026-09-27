@@ -19,7 +19,8 @@ type Chunk struct {
 	StartLine int
 	EndLine   int
 	Content   string
-	Distance  float64 // cosine distance to the question; 0 means identical direction
+	Distance  float64 // cosine distance to the question; 0 means identical direction (vector search only)
+	Score     float64 // keyword score, higher is better (keyword search only)
 }
 
 type Searcher interface {
@@ -153,19 +154,28 @@ func CheckPgvector(ctx context.Context, pool *pgxpool.Pool) (string, error) {
 	return version, nil
 }
 
-// CheckSchema fails when a table added by a later migration is missing, naming the file to apply, so a
+// CheckSchema fails when a table or column added by a later migration is missing, naming the file to apply, so a
 // dev database that predates a migration fails at startup instead of on the first question.
 func CheckSchema(ctx context.Context, pool *pgxpool.Pool) error {
-	required := []struct{ table, file string }{
-		{"query_embedding_cache", "migrations/002_query_cache.sql"},
+	required := []struct{ table, column, file string }{
+		{"query_embedding_cache", "", "migrations/002_query_cache.sql"},
+		{"chunks", "search_tsv", "migrations/003_chunk_search.sql"},
 	}
 	for _, r := range required {
 		var exists bool
-		if err := pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL`, r.table).Scan(&exists); err != nil {
-			return fmt.Errorf("check table %s: %w", r.table, err)
+		err := pool.QueryRow(ctx, `
+SELECT CASE WHEN $2::text = '' THEN to_regclass($1::text) IS NOT NULL
+            ELSE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = $1::text AND column_name = $2::text) END`,
+			r.table, r.column).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("check %s: %w", r.table, err)
 		}
 		if !exists {
-			return fmt.Errorf("table %s is missing: apply %s", r.table, r.file)
+			name := r.table
+			if r.column != "" {
+				name += "." + r.column
+			}
+			return fmt.Errorf("%s is missing: apply %s", name, r.file)
 		}
 	}
 	return nil

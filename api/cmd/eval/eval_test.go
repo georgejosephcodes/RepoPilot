@@ -109,6 +109,9 @@ func TestCheckFlags(t *testing.T) {
 			t.Fatalf("%s with -final must run", s)
 		}
 	}
+	if checkFlags("keyword-tsrank", "dev", false) != nil || checkFlags("keyword-bm25", "dev", false) != nil {
+		t.Fatal("keyword variants must be accepted")
+	}
 	if checkFlags("hybrid", "dev", false) == nil || checkFlags("vector", "train", true) == nil {
 		t.Fatal("unknown variant or split must fail")
 	}
@@ -143,7 +146,7 @@ type fakeSearcher struct {
 	calls   []int
 }
 
-func (f *fakeSearcher) Search(_ context.Context, repoID int64, _ []float32, k int) ([]retrieval.Chunk, error) {
+func (f *fakeSearcher) Retrieve(_ context.Context, repoID int64, _ string, _ []float32, k int) ([]retrieval.Chunk, error) {
 	f.calls = append(f.calls, k)
 	return f.results[repoID], nil
 }

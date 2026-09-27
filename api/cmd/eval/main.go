@@ -29,11 +29,23 @@ import (
 	"repopilot/api/internal/retrieval"
 )
 
-var variants = map[string]bool{"vector": true}
+var variants = map[string]bool{"vector": true, "keyword-tsrank": true, "keyword-bm25": true}
+
+// retrieverFor builds the retriever a variant names.
+func retrieverFor(variant string, pool *pgxpool.Pool, model string, dim int) retrieval.Retriever {
+	switch variant {
+	case "keyword-tsrank":
+		return retrieval.NewKeywordRetriever(pool, retrieval.ScoreTSRank)
+	case "keyword-bm25":
+		return retrieval.NewKeywordRetriever(pool, retrieval.ScoreBM25)
+	default:
+		return retrieval.VectorRetriever{Searcher: retrieval.NewPgSearcher(pool, model, dim)}
+	}
+}
 
 func main() {
 	questionsPath := flag.String("questions", "../docs/phase2/eval.json", "evaluation set")
-	variant := flag.String("variant", "vector", "retrieval variant: vector")
+	variant := flag.String("variant", "vector", "retrieval variant: vector, keyword-tsrank or keyword-bm25")
 	split := flag.String("split", "dev", "dev, test or all")
 	final := flag.Bool("final", false, "allow the test split (and all); use only for the baseline and the final run")
 	outPath := flag.String("out", "", "write the run as JSON here")
@@ -126,8 +138,7 @@ func main() {
 	if err != nil {
 		fatal("embed questions: " + err.Error())
 	}
-	searcher := retrieval.NewPgSearcher(pool, upstream.ModelName(), upstream.Dimension())
-	results, err := retrieveAll(ctx, qs, vecs, ids, searcher)
+	results, err := retrieveAll(ctx, qs, vecs, ids, retrieverFor(*variant, pool, upstream.ModelName(), upstream.Dimension()))
 	if err != nil {
 		fatal("retrieve: " + err.Error())
 	}
