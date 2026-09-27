@@ -1,0 +1,553 @@
+{
+  "version": 1,
+  "api": "http://localhost:8080",
+  "results": {
+    "go-1": {
+      "repo": "golang/example",
+      "kind": "location",
+      "question": "Where is the function that reverses a string implemented?",
+      "asked_at": "2026-09-27T06:44:13+00:00",
+      "elapsed_ms": 1914,
+      "response": {
+        "answer": "The function that reverses a string is implemented in `hello/reverse/reverse.go` as the `String` function [1].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "hello/reverse/reverse.go",
+            "start_line": 8,
+            "end_line": 15,
+            "symbol": "String",
+            "kind": "function",
+            "language": "go",
+            "snippet": "// String returns its argument string reversed rune-wise left to right.\nfunc String(s string) string {\n\tr := []rune(s)\n\tfor i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {\n\t\tr[i], r[j] = r[j], r[i]\n\t}\n\treturn string(r)\n}"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 655,
+          "search_ms": 12,
+          "llm_ms": 1243,
+          "input_tokens": 1063,
+          "output_tokens": 27
+        }
+      }
+    },
+    "go-2": {
+      "repo": "golang/example",
+      "kind": "location",
+      "question": "Where is the Weaviate client initialized?",
+      "asked_at": "2026-09-27T06:44:22+00:00",
+      "elapsed_ms": 1711,
+      "response": {
+        "answer": "The Weaviate client is initialized in the `initWeaviate` function [1], which is called from the `main` function [6].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "ragserver/ragserver/weaviate.go",
+            "start_line": 19,
+            "end_line": 46,
+            "symbol": "initWeaviate",
+            "kind": "function",
+            "language": "go",
+            "snippet": "// initWeaviate initializes a weaviate client for our application.\nfunc initWeaviate(ctx context.Context) (*weaviate.Client, error) {\n\tclient, err := weaviate.NewClient(weaviate.Config{\n\t\tHost:   \"localhost:\" + cmp.Or(os.Getenv(\"WVPORT\"), \"9035\"),\n\t\tScheme: \"http\",\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"initializing weaviate: %w\", err)\n\t}\n\n\t// Create a new class (collection) in weaviate if it doesn't exist yet.\n\tcls := &models.Class{\n\t\tClass:      \"Document\",\n\t\tVectorizer: \"none\",\n\t}\n\texists, err := client.Schema().ClassExistenceChecker().WithClassName(cls.Class).Do(ctx)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"weaviate error: %w\", err)\n\t}\n\tif !exists {\n\t\terr = client.Schema().ClassCreator().WithClass(cls).Do(ctx)\n\t\tif err != nil {\n\t\t\treturn nil, fmt.Errorf(\"weaviate error: %w\", err)\n\t\t}\n\t}\n\n\treturn client, nil\n}"
+          },
+          {
+            "n": 6,
+            "file": "ragserver/ragserver/main.go",
+            "start_line": 29,
+            "end_line": 61,
+            "symbol": "main",
+            "kind": "function",
+            "language": "go",
+            "snippet": "// This is a standard Go HTTP server. Server state is in the ragServer struct.\n// The `main` function connects to the required services (Weaviate and Google\n// AI), initializes the server state and registers HTTP handlers.\nfunc main() {\n\tctx := context.Background()\n\twvClient, err := initWeaviate(ctx)\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\tapiKey := os.Getenv(\"GEMINI_API_KEY\")\n\tgenaiClient, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tdefer genaiClient.Close()\n\n\tserver := &ragServer{\n\t\tctx:      ctx,\n\t\twvClient: wvClient,\n\t\tgenModel: genaiClient.GenerativeModel(generativeModelName),\n\t\tembModel: genaiClient.EmbeddingModel(embeddingModelName),\n\t}\n\n\tmux := http.NewServeMux()\n\tmux.HandleFunc(\"POST /add/\", server.addDocumentsHandler)\n\tmux.HandleFunc(\"POST /query/\", server.queryHandler)\n\n\tport := cmp.Or(os.Getenv(\"SERVERPORT\"), \"9020\")\n\taddress := \"localhost:\" + port\n\tlog.Println(\"listening on\", address)\n\tlog.Fatal(http.ListenAndServe(address, mux))\n}"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 271,
+          "search_ms": 6,
+          "llm_ms": 1428,
+          "input_tokens": 2120,
+          "output_tokens": 31
+        }
+      }
+    },
+    "go-3": {
+      "repo": "golang/example",
+      "kind": "flow",
+      "question": "How does the ragserver query handler answer a question?",
+      "asked_at": "2026-09-27T06:44:31+00:00",
+      "elapsed_ms": 2118,
+      "response": {
+        "answer": "To answer a question, the ragserver query handler performs the following steps:\n\n1. It parses the incoming HTTP request from JSON to extract the query content [1][2][3].\n2. It searches for the most relevant documents (finding up to 3 similar documents) using vector search or retrieval mechanisms via Weaviate [1][2][3].\n3. It formats a RAG query string using a template (`ragTemplateStr`) that combines the user's question and the content of the retrieved documents [1][2][3][4][5][6].\n4. It sends the generated RAG query to the generative model/LLM to obtain a response [1][2][3].\n5. Finally, it renders the model's response back to the client as JSON [1][2][3].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "ragserver/ragserver/main.go",
+            "start_line": 124,
+            "end_line": 192,
+            "symbol": "ragServer.queryHandler",
+            "kind": "method",
+            "language": "go",
+            "snippet": "func (rs *ragServer) queryHandler(w http.ResponseWriter, req *http.Request) {\n\t// Parse HTTP request from JSON.\n\ttype queryRequest struct {\n\t\tContent string\n\t}\n\tqr := &queryRequest{}\n\terr := readRequestJSON(req, qr)\n\tif err != nil {\n\t\thttp.Error(w, err.Error(), http.StatusBadRequest)\n\t\treturn\n\t}\n\n\t// Embed the query contents.\n\trsp, err := rs.embModel.EmbedContent(rs.ctx, genai.Text(qr.Content))\n\tif err != nil {\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\t// Search weaviate to find the most relevant (closest in vector space)\n\t// documents to the query.\n\tgql := rs.wvClient.GraphQL()\n\tresult, err := gql.Get().\n\t\tWithNearVector(\n\t\t\tgql.NearVectorArgBuilder().WithVector(rsp.Embedding.Values)).\n\t\tWithClassName(\"Document\").\n\t\tWithFields(graphql.Field{Name: \"text\"}).\n\t\tWithLimit(3).\n\t\tDo(rs.ctx)\n\tif werr := combinedWeaviateError(result, err); werr != nil {\n\t\thttp.Error(w, werr.Error(), http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\tcontents, err := decodeGetResults(result)\n\tif err != nil {\n\t\thttp.Error(w, fmt.Errorf(\"reading weaviate response: %w\", err).Error(), http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\t// Create a RAG query for the LLM with the most relevant documents as\n\t// context.\n\tragQuery := fmt.Sprintf(ragTemplateStr, qr.Content, strings.Join(contents, \"\\n\"))\n\tresp, err := rs.genModel.GenerateContent(rs.ctx, genai.Text(ragQuery))\n\tif err != nil {\n\t\tlog.Printf(\"calling generative model: %v\", err.Error())\n\t\thttp.Error(w, \"generative model error\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\tif len(resp.Candidates) != 1 {\n\t\tlog.Printf(\"got %v candidates, expected 1\", len(resp.Candidates))\n\t\thttp.Error(w, \"generative model error\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\tvar respTexts []string\n\tfor _, part := range resp.Candidates[0].Content.Parts {\n\t\tif pt, ok := part.(genai.Text); ok {\n\t\t\trespTexts = append(respTexts, string(pt))\n\t\t} else {\n\t\t\tlog.Printf(\"bad type of part: %v\", pt)\n\t\t\thttp.Error(w, \"generative model error\", http.StatusInternalServerError)\n\t\t\treturn\n\t\t}\n\t}\n\n\trenderJSON(w, strings.Join(respTexts, \"\\n\"))\n}"
+          },
+          {
+            "n": 2,
+            "file": "ragserver/ragserver-langchaingo/main.go",
+            "start_line": 105,
+            "end_line": 139,
+            "symbol": "ragServer.queryHandler",
+            "kind": "method",
+            "language": "go",
+            "snippet": "func (rs *ragServer) queryHandler(w http.ResponseWriter, req *http.Request) {\n\t// Parse HTTP request from JSON.\n\ttype queryRequest struct {\n\t\tContent string\n\t}\n\tqr := &queryRequest{}\n\terr := readRequestJSON(req, qr)\n\tif err != nil {\n\t\thttp.Error(w, err.Error(), http.StatusBadRequest)\n\t\treturn\n\t}\n\n\t// Find the most similar documents.\n\tdocs, err := rs.wvStore.SimilaritySearch(rs.ctx, qr.Content, 3)\n\tif err != nil {\n\t\thttp.Error(w, fmt.Errorf(\"similarity search: %w\", err).Error(), http.StatusInternalServerError)\n\t\treturn\n\t}\n\tvar docsContents []string\n\tfor _, doc := range docs {\n\t\tdocsContents = append(docsContents, doc.PageContent)\n\t}\n\n\t// Create a RAG query for the LLM with the most relevant documents as\n\t// context.\n\tragQuery := fmt.Sprintf(ragTemplateStr, qr.Content, strings.Join(docsContents, \"\\n\"))\n\trespText, err := llms.GenerateFromSinglePrompt(rs.ctx, rs.geminiClient, ragQuery, llms.WithModel(generativeModelName))\n\tif err != nil {\n\t\tlog.Printf(\"calling generative model: %v\", err.Error())\n\t\thttp.Error(w, \"generative model error\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\trenderJSON(w, respText)\n}"
+          },
+          {
+            "n": 3,
+            "file": "ragserver/ragserver-genkit/main.go",
+            "start_line": 116,
+            "end_line": 162,
+            "symbol": "ragServer.queryHandler",
+            "kind": "method",
+            "language": "go",
+            "snippet": "func (rs *ragServer) queryHandler(w http.ResponseWriter, req *http.Request) {\n\t// Parse HTTP request from JSON.\n\ttype queryRequest struct {\n\t\tContent string\n\t}\n\tqr := &queryRequest{}\n\terr := readRequestJSON(req, qr)\n\tif err != nil {\n\t\thttp.Error(w, err.Error(), http.StatusBadRequest)\n\t\treturn\n\t}\n\n\t// Find the most similar documents using the retriever.\n\tresp, err := ai.Retrieve(rs.ctx,\n\t\trs.retriever,\n\t\tai.WithRetrieverDoc(ai.DocumentFromText(qr.Content, nil)),\n\t\tai.WithRetrieverOpts(&weaviate.RetrieverOptions{\n\t\t\tCount: 3,\n\t\t}))\n\tif err != nil {\n\t\thttp.Error(w, fmt.Errorf(\"retrieval: %w\", err).Error(), http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\tvar docsContents []string\n\tfor _, d := range resp.Documents {\n\t\tdocsContents = append(docsContents, d.Content[0].Text)\n\t}\n\n\t// Create a RAG query for the LLM with the most relevant documents as\n\t// context.\n\tragQuery := fmt.Sprintf(ragTemplateStr, qr.Content, strings.Join(docsContents, \"\\n\"))\n\tgenResp, err := ai.Generate(rs.ctx, rs.model, ai.WithTextPrompt(ragQuery))\n\tif err != nil {\n\t\tlog.Printf(\"calling generative model: %v\", err.Error())\n\t\thttp.Error(w, \"generative model error\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\tif len(genResp.Candidates) != 1 {\n\t\tlog.Printf(\"got %v candidates, expected 1\", len(genResp.Candidates))\n\t\thttp.Error(w, \"generative model error\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\trenderJSON(w, genResp.Text())\n}"
+          },
+          {
+            "n": 4,
+            "file": "ragserver/ragserver/main.go",
+            "start_line": 194,
+            "end_line": 213,
+            "symbol": "",
+            "kind": "window",
+            "language": "go",
+            "snippet": "const ragTemplateStr = `\nI will ask you a question and will provide some additional context information.\nAssume this context information is factual and correct, as part of internal\ndocumentation.\nIf the question relates to the context, answer it using the context.\nIf the question does not relate to the context, answer it as normal.\n\nFor example, let's say the context has nothing in it about tropical flowers;\nthen if I ask you about tropical flowers, just answer what you know about them\nwithout referring to the context.\n\nFor example, if the context does mention minerology and I ask you about that,\nprovide information from the context along with general knowledge.\n\nQuestion:\n%s\n\nContext:\n%s\n`"
+          },
+          {
+            "n": 5,
+            "file": "ragserver/ragserver-genkit/main.go",
+            "start_line": 164,
+            "end_line": 183,
+            "symbol": "",
+            "kind": "window",
+            "language": "go",
+            "snippet": "const ragTemplateStr = `\nI will ask you a question and will provide some additional context information.\nAssume this context information is factual and correct, as part of internal\ndocumentation.\nIf the question relates to the context, answer it using the context.\nIf the question does not relate to the context, answer it as normal.\n\nFor example, let's say the context has nothing in it about tropical flowers;\nthen if I ask you about tropical flowers, just answer what you know about them\nwithout referring to the context.\n\nFor example, if the context does mention minerology and I ask you about that,\nprovide information from the context along with general knowledge.\n\nQuestion:\n%s\n\nContext:\n%s\n`"
+          },
+          {
+            "n": 6,
+            "file": "ragserver/ragserver-langchaingo/main.go",
+            "start_line": 141,
+            "end_line": 160,
+            "symbol": "",
+            "kind": "window",
+            "language": "go",
+            "snippet": "const ragTemplateStr = `\nI will ask you a question and will provide some additional context information.\nAssume this context information is factual and correct, as part of internal\ndocumentation.\nIf the question relates to the context, answer it using the context.\nIf the question does not relate to the context, answer it as normal.\n\nFor example, let's say the context has nothing in it about tropical flowers;\nthen if I ask you about tropical flowers, just answer what you know about them\nwithout referring to the context.\n\nFor example, if the context does mention minerology and I ask you about that,\nprovide information from the context along with general knowledge.\n\nQuestion:\n%s\n\nContext:\n%s\n`"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 264,
+          "search_ms": 8,
+          "llm_ms": 1841,
+          "input_tokens": 2559,
+          "output_tokens": 172
+        }
+      }
+    },
+    "go-4": {
+      "repo": "golang/example",
+      "kind": "unanswerable",
+      "question": "How does the server authenticate users with OAuth tokens?",
+      "asked_at": "2026-09-27T06:44:40+00:00",
+      "elapsed_ms": 1600,
+      "response": {
+        "answer": "Not enough evidence in the retrieved code. The provided context does not contain any information about how the server authenticates users with OAuth tokens.",
+        "grounded": true,
+        "refused": true,
+        "truncated": false,
+        "citations": [],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 271,
+          "search_ms": 8,
+          "llm_ms": 1318,
+          "input_tokens": 1357,
+          "output_tokens": 27
+        }
+      }
+    },
+    "go-5": {
+      "repo": "golang/example",
+      "kind": "identifier",
+      "question": "What does PrintDefsUses do?",
+      "asked_at": "2026-09-27T06:44:48+00:00",
+      "elapsed_ms": 1825,
+      "response": {
+        "answer": "`PrintDefsUses` configures a type checker, checks the provided AST files using `conf.Check`, and populates `Defs` and `Uses` maps in a `types.Info` struct [1]. It then iterates through `info.Defs` and `info.Uses` to print the position, name, and object associated with each defining and referring identifier [1].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "gotypes/defsuses/main.go",
+            "start_line": 22,
+            "end_line": 43,
+            "symbol": "PrintDefsUses",
+            "kind": "function",
+            "language": "go",
+            "snippet": "// !+\nfunc PrintDefsUses(fset *token.FileSet, files ...*ast.File) error {\n\tconf := types.Config{Importer: importer.Default()}\n\tinfo := &types.Info{\n\t\tDefs: make(map[*ast.Ident]types.Object),\n\t\tUses: make(map[*ast.Ident]types.Object),\n\t}\n\t_, err := conf.Check(\"hello\", fset, files, info)\n\tif err != nil {\n\t\treturn err // type error\n\t}\n\n\tfor id, obj := range info.Defs {\n\t\tfmt.Printf(\"%s: %q defines %v\\n\",\n\t\t\tfset.Position(id.Pos()), id.Name, obj)\n\t}\n\tfor id, obj := range info.Uses {\n\t\tfmt.Printf(\"%s: %q uses %v\\n\",\n\t\t\tfset.Position(id.Pos()), id.Name, obj)\n\t}\n\treturn nil\n}"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 353,
+          "search_ms": 7,
+          "llm_ms": 1460,
+          "input_tokens": 2473,
+          "output_tokens": 78
+        }
+      }
+    },
+    "ts-1": {
+      "repo": "sindresorhus/is",
+      "kind": "location",
+      "question": "Where is the function that detects the type name of a value?",
+      "asked_at": "2026-09-27T06:44:57+00:00",
+      "elapsed_ms": 1276,
+      "response": {
+        "answer": "The function that detects the type name of a value is named `detect` and can be found in `source/index.ts` [1][3].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "source/index.ts",
+            "start_line": 195,
+            "end_line": 259,
+            "symbol": "detect",
+            "kind": "function",
+            "language": "typescript",
+            "snippet": "function detect(value: unknown): TypeName {\n\tif (value === null) {\n\t\treturn 'null';\n\t}\n\n\t// eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check\n\tswitch (typeof value) {\n\t\tcase 'undefined': {\n\t\t\treturn 'undefined';\n\t\t}\n\n\t\tcase 'string': {\n\t\t\treturn 'string';\n\t\t}\n\n\t\tcase 'number': {\n\t\t\treturn Number.isNaN(value) ? 'NaN' : 'number';\n\t\t}\n\n\t\tcase 'boolean': {\n\t\t\treturn 'boolean';\n\t\t}\n\n\t\tcase 'function': {\n\t\t\treturn 'Function';\n\t\t}\n\n\t\tcase 'bigint': {\n\t\t\treturn 'bigint';\n\t\t}\n\n\t\tcase 'symbol': {\n\t\t\treturn 'symbol';\n\t\t}\n\n\t\tdefault:\n\t}\n\n\tif (isObservable(value)) {\n\t\treturn 'Observable';\n\t}\n\n\tif (isArray(value)) {\n\t\treturn 'Array';\n\t}\n\n\tif (isBuffer(value)) {\n\t\treturn 'Buffer';\n\t}\n\n\tconst tagType = getObjectType(value);\n\tif (tagType !== undefined && tagType !== 'Object') {\n\t\treturn tagType;\n\t}\n\n\tif (hasPromiseApi(value)) {\n\t\treturn 'Promise';\n\t}\n\n\tif (isBoxedPrimitiveObject(value)) {\n\t\tthrow new TypeError('Please don\\'t use object wrappers for primitive types');\n\t}\n\n\treturn 'Object';\n}"
+          },
+          {
+            "n": 3,
+            "file": "readme.md",
+            "start_line": 80,
+            "end_line": 102,
+            "symbol": "is > API > is(value)",
+            "kind": "doc",
+            "language": "markdown",
+            "snippet": "### is(value)\n\nReturns the type of `value`.\n\nPrimitives are lowercase and object types are camelcase.\n\nExample:\n\n- `'undefined'`\n- `'null'`\n- `'string'`\n- `'symbol'`\n- `'Array'`\n- `'Function'`\n- `'Object'`\n\nThis method is also exported as `detect`. You can import it like this:\n\n```js\nimport {detect} from '@sindresorhus/is';\n```\n\nNote: It will throw an error if you try to feed it object-wrapped primitives, as that's a bad practice. For example `new String('foo')`."
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 221,
+          "search_ms": 9,
+          "llm_ms": 1040,
+          "input_tokens": 1142,
+          "output_tokens": 32
+        }
+      }
+    },
+    "ts-2": {
+      "repo": "sindresorhus/is",
+      "kind": "location",
+      "question": "Where is the check that a string is empty or contains only whitespace?",
+      "asked_at": "2026-09-27T06:45:16+00:00",
+      "elapsed_ms": 11820,
+      "response": {
+        "answer": "The check that a string is empty or contains only whitespace is implemented in the `isEmptyStringOrWhitespace` function [2]. This function returns `true` if the value is an empty string or a whitespace string by combining `isEmptyString(value)` and `isWhitespaceString(value)` [2].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 2,
+            "file": "source/index.ts",
+            "start_line": 586,
+            "end_line": 588,
+            "symbol": "isEmptyStringOrWhitespace",
+            "kind": "function",
+            "language": "typescript",
+            "snippet": "export function isEmptyStringOrWhitespace(value: unknown): value is '' | Whitespace {\n\treturn isEmptyString(value) || isWhitespaceString(value);\n}"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 220,
+          "search_ms": 10,
+          "llm_ms": 11585,
+          "input_tokens": 886,
+          "output_tokens": 61
+        }
+      }
+    },
+    "ts-3": {
+      "repo": "sindresorhus/is",
+      "kind": "flow",
+      "question": "How does isAll combine several predicates into one?",
+      "asked_at": "2026-09-27T06:45:24+00:00",
+      "elapsed_ms": 1595,
+      "response": {
+        "answer": "When an array of predicates is passed to `isAll`, it uses `predicateArray.every` to check if a value matches every single predicate in the array [2]. \n\nInference: This combined predicate function is defined as `(value: unknown) => predicateArray.every(singlePredicate => singlePredicate(value))` [2].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 2,
+            "file": "source/index.ts",
+            "start_line": 426,
+            "end_line": 440,
+            "symbol": "isAll",
+            "kind": "function",
+            "language": "typescript",
+            "snippet": "export function isAll(predicate: Predicate | readonly Predicate[], ...values: unknown[]): boolean | Predicate {\n\tif (Array.isArray(predicate)) {\n\t\tconst predicateArray = predicate as readonly Predicate[];\n\t\tvalidatePredicateArray(predicateArray, values.length === 0);\n\n\t\tconst combinedPredicate = (value: unknown) => predicateArray.every(singlePredicate => singlePredicate(value));\n\t\tif (values.length === 0) {\n\t\t\treturn combinedPredicate;\n\t\t}\n\n\t\treturn predicateOnArray(Array.prototype.every, combinedPredicate, values);\n\t}\n\n\treturn predicateOnArray(Array.prototype.every, predicate as Predicate, values);\n}"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 264,
+          "search_ms": 10,
+          "llm_ms": 1315,
+          "input_tokens": 2036,
+          "output_tokens": 70
+        }
+      }
+    },
+    "ts-4": {
+      "repo": "sindresorhus/is",
+      "kind": "unanswerable",
+      "question": "How does the library connect to a database?",
+      "asked_at": "2026-09-27T06:45:40+00:00",
+      "elapsed_ms": 9078,
+      "response": {
+        "answer": "Not enough evidence in the retrieved code. The provided context does not contain any information about how the library connects to a database.",
+        "grounded": true,
+        "refused": true,
+        "truncated": false,
+        "citations": [],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 270,
+          "search_ms": 10,
+          "llm_ms": 8793,
+          "input_tokens": 1153,
+          "output_tokens": 25
+        }
+      }
+    },
+    "ts-5": {
+      "repo": "sindresorhus/is",
+      "kind": "identifier",
+      "question": "What does isAbsoluteModule2 do?",
+      "asked_at": "2026-09-27T06:45:49+00:00",
+      "elapsed_ms": 2201,
+      "response": {
+        "answer": "`isAbsoluteModule2` is a function that takes a remainder (`0` or `1`) and returns another function [1]. The returned function checks if a given value is an integer and if the absolute value of `value % 2` is equal to that remainder [1].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "source/index.ts",
+            "start_line": 387,
+            "end_line": 389,
+            "symbol": "isAbsoluteModule2",
+            "kind": "function",
+            "language": "typescript",
+            "snippet": "function isAbsoluteModule2(remainder: 0 | 1) {\n\treturn (value: unknown): value is number => isInteger(value) && Math.abs(value % 2) === remainder;\n}"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 503,
+          "search_ms": 10,
+          "llm_ms": 1684,
+          "input_tokens": 1774,
+          "output_tokens": 58
+        }
+      }
+    },
+    "py-1": {
+      "repo": "pallets/itsdangerous",
+      "kind": "location",
+      "question": "Where is the HMAC signature computed?",
+      "asked_at": "2026-09-27T06:45:58+00:00",
+      "elapsed_ms": 1689,
+      "response": {
+        "answer": "The HMAC signature is computed in the `HMACAlgorithm.get_signature` method using `hmac.new` and returning `mac.digest()` [1].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "src/itsdangerous/signer.py",
+            "start_line": 48,
+            "end_line": 64,
+            "symbol": "HMACAlgorithm",
+            "kind": "class",
+            "language": "python",
+            "snippet": "class HMACAlgorithm(SigningAlgorithm):\n    \"\"\"Provides signature generation using HMACs.\"\"\"\n\n    #: The digest method to use with the MAC algorithm. This defaults to\n    #: SHA1, but can be changed to any other function in the hashlib\n    #: module.\n    default_digest_method: t.Any = staticmethod(_lazy_sha1)\n\n    def __init__(self, digest_method: t.Any = None):\n        if digest_method is None:\n            digest_method = self.default_digest_method\n\n        self.digest_method: t.Any = digest_method\n\n    def get_signature(self, key: bytes, value: bytes) -> bytes:\n        mac = hmac.new(key, msg=value, digestmod=self.digest_method)\n        return mac.digest()"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 297,
+          "search_ms": 6,
+          "llm_ms": 1381,
+          "input_tokens": 2391,
+          "output_tokens": 34
+        }
+      }
+    },
+    "py-2": {
+      "repo": "pallets/itsdangerous",
+      "kind": "location",
+      "question": "Where does the code convert a timestamp into a datetime?",
+      "asked_at": "2026-09-27T06:46:12+00:00",
+      "elapsed_ms": 7049,
+      "response": {
+        "answer": "The code converts a timestamp into a datetime using the `timestamp_to_datetime` method, which calls `datetime.fromtimestamp(ts, tz=timezone.utc)` [1].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "src/itsdangerous/timed.py",
+            "start_line": 35,
+            "end_line": 43,
+            "symbol": "TimestampSigner.timestamp_to_datetime",
+            "kind": "method",
+            "language": "python",
+            "snippet": "    def timestamp_to_datetime(self, ts: int) -> datetime:\n        \"\"\"Convert the timestamp from :meth:`get_timestamp` into an\n        aware :class`datetime.datetime` in UTC.\n\n        .. versionchanged:: 2.0\n            The timestamp is returned as a timezone-aware ``datetime``\n            in UTC rather than a naive ``datetime`` assumed to be UTC.\n        \"\"\"\n        return datetime.fromtimestamp(ts, tz=timezone.utc)"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 441,
+          "search_ms": 6,
+          "llm_ms": 6596,
+          "input_tokens": 2420,
+          "output_tokens": 38
+        }
+      }
+    },
+    "py-3": {
+      "repo": "pallets/itsdangerous",
+      "kind": "flow",
+      "question": "How does TimestampSigner check that a signed value has expired?",
+      "asked_at": "2026-09-27T06:46:25+00:00",
+      "elapsed_ms": 5406,
+      "response": {
+        "answer": "`TimestampSigner` checks if a signed value has expired within its `unsign` method by calculating the age of the signature and comparing it against the provided `max_age` [2]. \n\nSpecifically:\n1. It decodes the timestamp from the signed value (`ts_int`) [2].\n2. If `max_age` is not `None`, it computes the age by subtracting `ts_int` from the current timestamp obtained via `self.get_timestamp()` [2].\n3. It raises a `SignatureExpired` exception if the age is greater than `max_age` or if the age is less than 0 [2].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 2,
+            "file": "src/itsdangerous/timed.py",
+            "start_line": 72,
+            "end_line": 158,
+            "symbol": "TimestampSigner.unsign",
+            "kind": "method",
+            "language": "python",
+            "snippet": "    def unsign(\n        self,\n        signed_value: str | bytes,\n        max_age: int | None = None,\n        return_timestamp: bool = False,\n    ) -> tuple[bytes, datetime] | bytes:\n        \"\"\"Works like the regular :meth:`.Signer.unsign` but can also\n        validate the time. See the base docstring of the class for\n        the general behavior. If ``return_timestamp`` is ``True`` the\n        timestamp of the signature will be returned as an aware\n        :class:`datetime.datetime` object in UTC.\n\n        .. versionchanged:: 2.0\n            The timestamp is returned as a timezone-aware ``datetime``\n            in UTC rather than a naive ``datetime`` assumed to be UTC.\n        \"\"\"\n        try:\n            result = super().unsign(signed_value)\n            sig_error = None\n        except BadSignature as e:\n            sig_error = e\n            result = e.payload or b\"\"\n\n        sep = want_bytes(self.sep)\n\n        # If there is no timestamp in the result there is something\n        # seriously wrong. In case there was a signature error, we raise\n        # that one directly, otherwise we have a weird situation in\n        # which we shouldn't have come except someone uses a time-based\n        # serializer on non-timestamp data, so catch that.\n        if sep not in result:\n            if sig_error:\n                raise sig_error\n\n            raise BadTimeSignature(\"timestamp missing\", payload=result)\n\n        value, ts_bytes = result.rsplit(sep, 1)\n        ts_int: int | None = None\n        ts_dt: datetime | None = None\n\n        try:\n            ts_int = bytes_to_int(base64_decode(ts_bytes))\n        except Exception:\n            pass\n\n        # Signature is *not* okay. Raise a proper error now that we have\n        # split the value and the timestamp.\n        if sig_error is not None:\n            if ts_int is not None:\n                try:\n                    ts_dt = self.timestamp_to_datetime(ts_int)\n                except (ValueError, OSError, OverflowError) as exc:\n                    # Windows raises OSError\n                    # 32-bit raises OverflowError\n                    raise BadTimeSignature(\n                        \"Malformed timestamp\", payload=value\n                    ) from exc\n\n            raise BadTimeSignature(str(sig_error), payload=value, date_signed=ts_dt)\n\n        # Signature was okay but the timestamp is actually not there or\n        # malformed. Should not happen, but we handle it anyway.\n        if ts_int is None:\n            raise BadTimeSignature(\"Malformed timestamp\", payload=value)\n\n        # Check timestamp is not older than max_age\n        if max_age is not None:\n            age = self.get_timestamp() - ts_int\n\n            if age > max_age:\n                raise SignatureExpired(\n                    f\"Signature age {age} > {max_age} seconds\",\n                    payload=value,\n                    date_signed=self.timestamp_to_datetime(ts_int),\n                )\n\n            if age < 0:\n                raise SignatureExpired(\n                    f\"Signature age {age} < 0 seconds\",\n                    payload=value,\n                    date_signed=self.timestamp_to_datetime(ts_int),\n                )\n\n        if return_timestamp:\n            return value, self.timestamp_to_datetime(ts_int)\n\n        return value"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 218,
+          "search_ms": 6,
+          "llm_ms": 5175,
+          "input_tokens": 2872,
+          "output_tokens": 139
+        }
+      }
+    },
+    "py-4": {
+      "repo": "pallets/itsdangerous",
+      "kind": "unanswerable",
+      "question": "How does the library connect to a Redis server to cache signatures?",
+      "asked_at": "2026-09-27T06:46:39+00:00",
+      "elapsed_ms": 7750,
+      "response": {
+        "answer": "Not enough evidence in the retrieved code. The provided code does not contain any implementation or mention of connecting to a Redis server or caching signatures.",
+        "grounded": true,
+        "refused": true,
+        "truncated": false,
+        "citations": [],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 267,
+          "search_ms": 5,
+          "llm_ms": 7473,
+          "input_tokens": 977,
+          "output_tokens": 28
+        }
+      }
+    },
+    "py-5": {
+      "repo": "pallets/itsdangerous",
+      "kind": "identifier",
+      "question": "What does want_bytes do?",
+      "asked_at": "2026-09-27T06:46:48+00:00",
+      "elapsed_ms": 1691,
+      "response": {
+        "answer": "The `want_bytes` function checks if the input `s` is an instance of `str`, and if so, encodes it using the specified encoding and error handling (defaulting to \"utf-8\" and \"strict\"); otherwise, it returns `s` directly as bytes [1].",
+        "grounded": true,
+        "refused": false,
+        "truncated": false,
+        "citations": [
+          {
+            "n": 1,
+            "file": "src/itsdangerous/encoding.py",
+            "start_line": 11,
+            "end_line": 17,
+            "symbol": "want_bytes",
+            "kind": "function",
+            "language": "python",
+            "snippet": "def want_bytes(\n    s: str | bytes, encoding: str = \"utf-8\", errors: str = \"strict\"\n) -> bytes:\n    if isinstance(s, str):\n        s = s.encode(encoding, errors)\n\n    return s"
+          }
+        ],
+        "stats": {
+          "chunks_retrieved": 8,
+          "chunks_in_prompt": 8,
+          "embed_ms": 378,
+          "search_ms": 5,
+          "llm_ms": 1303,
+          "input_tokens": 970,
+          "output_tokens": 60
+        }
+      }
+    }
+  }
+}

@@ -6,7 +6,7 @@
 
 RepoPilot helps a developer go from "I don't understand this repository" to "I know where to look and what to change."
 
-> Status: Phase 1 in progress, 8 of 9 steps done. Steps 1-3 of 9 (scaffold + database, ingestion API, worker clone and scan) are done and verified. Step 4 (tree-sitter chunking) is done and verified. Step 5 (embeddings and storage) is done and verified: a real repository was chunked, embedded through OpenRouter and stored. Step 6 (retrieval) is done and verified: three real questions returned a correct file in the top 5, with search taking under 10 ms. Step 7 (answers with validated citations) is done and verified: real questions return grounded, cited answers whose snippets equal the real file lines. Step 8 (terminal UI) is done and verified in a real browser, including a live `add` with progress. Step 9 (demo pass) remains. Docs: [ARCHITECTURE.md](ARCHITECTURE.md) (design), [RepoPilotPlan.md](RepoPilotPlan.md) (original outline), [RepoPilot.md](RepoPilot.md) (product spec).
+> Status: Phase 1 complete. All 9 steps are done and verified: scaffold and database, ingestion API, worker clone and scan, tree-sitter chunking, embeddings and storage, retrieval, answers with validated citations, a terminal UI, and a demo pass on three real repositories (15 of 15 questions correct or correctly refused, see [Phase 1 results and known gaps](#phase-1-results-and-known-gaps)). Docs: [ARCHITECTURE.md](ARCHITECTURE.md) (design), [RepoPilotPlan.md](RepoPilotPlan.md) (original outline), [RepoPilot.md](RepoPilot.md) (product spec).
 
 ---
 
@@ -23,8 +23,9 @@ RepoPilot helps a developer go from "I don't understand this repository" to "I k
 9. [Repository layout](#repository-layout)
 10. [Getting started (planned)](#getting-started-planned)
 11. [Configuration](#configuration)
-12. [Limits and known trade-offs](#limits-and-known-trade-offs)
-13. [FAQ](#faq)
+12. [Phase 1 results and known gaps](#phase-1-results-and-known-gaps)
+13. [Limits and known trade-offs](#limits-and-known-trade-offs)
+14. [FAQ](#faq)
 
 ---
 
@@ -262,6 +263,32 @@ Planned environment variables (final list fixed at scaffold time):
 | `CLONE_TIMEOUT_SEC` | Kill a hung `git clone` |
 | `MAX_REPO_MB` / `MAX_FILES` / `MAX_FILE_KB` | Indexing size caps |
 | `RETRIEVAL_TOP_K` | Chunks sent to the LLM per question |
+
+---
+
+## Phase 1 results and known gaps
+
+Fifteen questions were run against three real, unmodified public repositories (Go, TypeScript, Python), one flow
+question, two location questions, one exact-identifier question, and one deliberately unanswerable question each.
+Every citation the system produced was checked against the real file before being counted, and every unanswerable
+question was checked by searching the repository so a refusal was the only correct result.
+
+**Result: 15 of 15 correct or correctly refused.** No wrong answer and no fabricated citation. Full question set,
+raw responses, mechanical checks, and a human verdict with notes for every answer: [`docs/phase1/`](docs/phase1/).
+
+This is a small, hand-picked question set, not a benchmark, and it should not be read as "retrieval is solved":
+
+- All 15 answers were found within the top 8 retrieved chunks. Earlier testing (during development, not part of this
+  run) found a case where the two best chunks ranked 6th and 7th and were only saved by using K=8; a smaller K, a
+  larger repository, or a less distinctive identifier could still miss.
+- Every answer here used the same embedding and generation model. A different provider could rank differently on the
+  same questions.
+- The three repositories are mid-size, well-documented, single-purpose libraries. A larger or messier codebase is
+  untested.
+- Retrieval is vector-only; no keyword search or reranking was used.
+
+These 15 questions are the seed of the Phase 2 evaluation set, which is expected to grow and include cases chosen to
+fail, not only cases expected to pass.
 
 ---
 
