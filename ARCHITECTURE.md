@@ -21,23 +21,24 @@ How RepoPilot is built, and why. For setup see the [README](README.md). For meas
 
 ## 1. Overview
 
-```
-                      terminal-style web UI
-                               │ HTTP/JSON
-                               ▼
-   embedding API ◄──── Go API (Gin) ────► answer model (Gemini)
-   (questions)      repos, retrieval,     (rerank + answer)
-                    rerank, rag
-                               │ SQL
-                               ▼
-                    PostgreSQL + pgvector
-         repositories · index_jobs · chunks (+ vectors, tsvector)
-         embedding_cache · query_embedding_cache · rerank_cache
-                               ▲ SQL (claim jobs, write chunks)
-                               │
-   embedding API ◄──── Python worker ────► GitHub (git clone, public repos)
-   (documents)      clone, scan, parse,
-                    chunk, embed, store
+```mermaid
+flowchart TB
+    ui["Terminal-style web UI"]
+    api["Go API (Gin)<br/>repos, retrieval, rerank, rag"]
+    worker["Python worker<br/>clone, scan, parse, chunk, embed, store"]
+    embedq["Embedding API<br/>(questions)"]
+    llm["Answer model (Gemini)<br/>rerank and answer"]
+    db[("PostgreSQL + pgvector<br/>repositories, index_jobs, chunks<br/>embedding_cache<br/>query_embedding_cache<br/>rerank_cache")]
+    embedd["Embedding API<br/>(documents)"]
+    github["GitHub<br/>(public repositories)"]
+
+    ui -->|HTTP/JSON| api
+    api --> embedq
+    api --> llm
+    api -->|"insert jobs,<br/>search chunks"| db
+    worker -->|"claim jobs,<br/>write chunks"| db
+    worker --> embedd
+    worker -->|git clone| github
 ```
 
 **The API and the worker never call each other.** They share only the database:
@@ -81,8 +82,23 @@ Design notes:
 
 ## 4. Indexing
 
-```
-claim job -> clone -> scan -> parse -> chunk -> embed -> store -> cleanup
+```mermaid
+flowchart TD
+    add["POST /api/repositories"] --> queued["index_jobs row: queued"]
+    queued --> claim["Worker claims the job<br/>FOR UPDATE SKIP LOCKED"]
+    claim --> clone["Clone: shallow, single branch,<br/>timeout and size cap"]
+    clone --> scan["Scan: skip dependencies, binaries,<br/>symlinks, large files"]
+    scan --> chunk["Parse with tree-sitter and chunk:<br/>one per function, class, method<br/>or Markdown heading"]
+    chunk --> cleanup["Remove the temporary clone"]
+    cleanup --> cache["Look up cached vectors"]
+    cache --> budget{"Daily embedding budget<br/>covers the rest?"}
+    budget -->|yes| embed["Embed new chunks in batches"]
+    embed --> store["Store: replace the repository's chunks<br/>in one transaction"]
+    store --> ready["Job succeeded, repository ready"]
+    budget -->|no| failed["Job failed<br/>an existing index stays ready"]
+    clone -.->|error| failed
+    scan -.->|no supported files| failed
+    embed -.->|error| failed
 ```
 
 - **Clone:** `git clone --depth 1 --single-branch`, as an argument list and never through a shell. Prompts and hooks are disabled, and there is a timeout and a size cap (`MAX_REPO_MB`). The URL is validated again in the worker. The clone goes into a temporary directory that is always removed.
@@ -134,6 +150,31 @@ Retrieval runs inside one repository, with optional filters. `RETRIEVAL_MODE` se
 | `vector` | exact cosine search on the question vector |
 | `hybrid` | vector search plus BM25 keyword search, fused with weighted Reciprocal Rank Fusion |
 | `hybrid_rerank` (default) | hybrid, then the answer model reorders the top 20 |
+
+The path of one question in the default mode, from the request to the response:
+
+```mermaid
+flowchart TD
+    q["Question + optional filters"] --> check{"Valid question and filters?<br/>Repository ready?"}
+    check -->|no| err["Error: 400, 404 or 409"]
+    check -->|yes| qembed["Embed the question<br/>(query_embedding_cache)"]
+    qembed --> vector["Vector search<br/>exact cosine, one repository"]
+    qembed --> keyword["Keyword search<br/>BM25 on search_tsv"]
+    vector --> fuse["Weighted reciprocal rank fusion<br/>test files down-weighted"]
+    keyword --> fuse
+    fuse --> rerank{"Rerank the top 20<br/>(rerank_cache)"}
+    rerank -->|ranking returned| top["Top 8 chunks"]
+    rerank -.->|"error, timeout or unparseable reply:<br/>keep the hybrid order"| top
+    top --> empty{"Any chunks?"}
+    empty -->|no| refuse["Refusal, no answer-model call"]
+    empty -->|yes| prompt["Build the prompt: numbered blocks<br/>within the character budget"]
+    prompt --> answer["Answer model cites blocks by number"]
+    answer --> validate["Server validates every citation marker<br/>against the blocks"]
+    validate --> resp["Answer, citations with snippets,<br/>grounded, refused, stats"]
+    refuse --> resp
+```
+
+`vector` mode goes from the vector search straight to the top 8, and `hybrid` mode skips the rerank step.
 
 **Vector search is exact.** It filters by `repo_id` with a btree index and sorts by true distance. An HNSW index with a repository filter returns its nearest candidates across all repositories and filters afterwards; in testing, that returned 0 of 10 needed rows for a small repository. Exact search over one repository's chunks takes milliseconds.
 
@@ -220,6 +261,18 @@ RETURNING *;
 - **Heartbeat:** the worker refreshes `locked_at` while it works.
 - **Stale jobs:** jobs left `running` with an old heartbeat, for example after the worker crashed, are re-queued. They fail after the maximum number of attempts.
 - **Status:** a repository's status changes in the same transaction as its job.
+
+```mermaid
+stateDiagram-v2
+    [*] --> queued
+    queued --> running: worker claims
+    running --> succeeded: chunks stored
+    running --> failed: error
+    running --> queued: stale heartbeat, attempts left
+    running --> failed: stale heartbeat, no attempts left
+    succeeded --> [*]
+    failed --> [*]
+```
 
 ## 11. Security
 
